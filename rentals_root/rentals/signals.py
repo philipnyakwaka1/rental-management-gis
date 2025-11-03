@@ -3,7 +3,6 @@ from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save, pre_delete, post_delete
 from django.dispatch import receiver
 
-# Use get_user_model to support custom user models
 User = get_user_model()
 
 
@@ -25,7 +24,7 @@ def save_related_buildings_before_profile_deletion(sender, instance, **kwargs):
     """
     Cache related Building IDs before the Profile is deleted.
     """
-    instance._related_building_ids = list(instance.buildings.values_list('id', flat=True))
+    instance._related_building_ids = list(instance.building.values_list('id', flat=True))
 
 
 @receiver(post_delete, sender=apps.get_model('rentals', 'Profile'))
