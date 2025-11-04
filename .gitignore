@@ -38,4 +38,24 @@ db.sqlite3
 # OS files
 .DS_Store
 
+# data files
+data/
+*.csv
+*.json
+*.geojson
+*.kml
+*.shp
+*.dbf
+*.prj
+*.shx
+*.cpg
+*.qgs
+*.qgz
+*.gpkg
+*.tif
+*.tiff
+*.mbtiles
+*.las
+*.laz   
+
 docs/
