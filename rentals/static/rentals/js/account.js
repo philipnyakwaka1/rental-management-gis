@@ -18,30 +18,26 @@
     }
   })();
 
-  // Fetch account details and populate the form
-(async function () {
-  const form = document.getElementById('account-update-form');
-  if (!form) return;
-
   // Reusable authenticated fetch with auto-refresh
   async function authFetch(url, options = {}) {
+    options.method = options.method || 'GET';
+    options.headers = options.headers || {};
     const accessToken = window.sessionStorage.getItem('access_token');
 
-    options.headers = {
-      ...(options.headers || {}),
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + accessToken
-    };
+    if (accessToken) {
+      options.headers['Authorization'] = 'Bearer ' + accessToken;
+    }
+
+    // send cookies for refresh
+    options.credentials = 'include';
 
     let response = await fetch(url, options);
 
-    // If access token expired → attempt refresh
     if (response.status === 401) {
       console.warn('Access token expired. Attempting refresh...');
-
-      const refreshResponse = await fetch('/rentals/api/v1/users/refresh-token/', {
+      const refreshResponse = await fetch('/rentals/api/v1/users/refresh/', {
         method: 'GET',
-        credentials: 'include' // send refresh cookie
+        credentials: 'include'
       });
 
       if (!refreshResponse.ok) {
@@ -50,12 +46,10 @@
         return;
       }
 
-      // Save new access token
       const refreshData = await refreshResponse.json();
       const newAccess = refreshData.access;
       window.sessionStorage.setItem('access_token', newAccess);
 
-      // Retry original request with new token
       options.headers['Authorization'] = 'Bearer ' + newAccess;
       response = await fetch(url, options);
     }
@@ -63,44 +57,32 @@
     return response;
   }
 
-  try {
-    // Use the authFetch wrapper
-    const response = await authFetch('/rentals/api/v1/users/me/', { method: 'GET' });
-    if (!response || !response.ok)
-      throw new Error(`Error fetching user data: ${response?.status} ${response?.statusText}`);
+  // Fetch account details and populate the form
+  (async function () {
+    const form = document.getElementById('account-update-form');
+    if (!form) return;
 
-    const data = await response.json();
+    try {
+      const response = await authFetch('/rentals/api/v1/users/me/', { method: 'GET' });
+      if (!response || !response.ok)
+        throw new Error(`Error fetching user data: ${response?.status} ${response?.statusText}`);
 
-    // Populate form fields
-    ['username', 'email', 'first_name', 'last_name', 'phone', 'address'].forEach(field => {
-      let input = null;
+      const data = await response.json();
 
-      // username is stored in special field #current-username
-      if (field === 'username') {
-        input = form.querySelector('#current-username');
-      }
-
-      if (!input) {
-        input = form.querySelector(`[name="${field}"]`);
-      }
-
-      // Populate only if exists
-      if (input) {
-        if (field === 'phone') {
-          input.value = data.profile ? data.profile.phone_number : '';
-        } else if (field === 'address') {
-          input.value = data.profile ? data.profile.address : '';
-        } else if (data[field] !== undefined) {
-          input.value = data[field];
+      ['username', 'email', 'first_name', 'last_name', 'phone', 'address'].forEach(field => {
+        let input = null;
+        if (field === 'username') input = form.querySelector('#current-username');
+        if (!input) input = form.querySelector(`[name="${field}"]`);
+        if (input) {
+          if (field === 'phone') input.value = data.profile ? data.profile.phone_number : '';
+          else if (field === 'address') input.value = data.profile ? data.profile.address : '';
+          else if (data[field] !== undefined) input.value = data[field];
         }
-      }
-    });
-
-  } catch (error) {
-    console.error('Failed to load account details:', error);
-  }
-})();
-
+      });
+    } catch (error) {
+      console.error('Failed to load account details:', error);
+    }
+  })();
 
   // Building create/edit modal handling
   (function(){
@@ -117,7 +99,6 @@
 
     const BuildingModalController = (function() {
         if (!buildingModalEl) return { show: () => {}, hide: () => {} };
-
         let closeHandlersAttached = false;
         let backdrop = null;
 
@@ -137,7 +118,6 @@
             backdrop = document.createElement('div');
             backdrop.className = 'modal-backdrop fade show fallback';
             document.body.appendChild(backdrop);
-            // Optionally, allow clicking the backdrop to close the modal
             backdrop.addEventListener('click', BuildingModalController.hide);
         }
 
@@ -171,7 +151,6 @@
         return { show, hide };
     })();
 
-    // wire open button to use the modal controller
     if (openBtn){
         openBtn.addEventListener('click', function(e){
             e.preventDefault();
@@ -197,55 +176,68 @@
     if (buildingForm){
         buildingForm.addEventListener('submit', async function(e){
             e.preventDefault();
-            // Validate required fields
-            const address = document.getElementById('b-address').value.trim();
-            const location = document.getElementById('b-coords').value.trim();
-            const rentalPriceEl = document.getElementById('b-price');
-            const rental_price = rentalPriceEl ? rentalPriceEl.value.trim() : '';
+
+            // Gather and validate fields
+            const title = buildingForm.querySelector('#b-title')?.value.trim() || '';
+            const address = buildingForm.querySelector('#b-address')?.value.trim() || '';
+            const district = buildingForm.querySelector('#b-district')?.value.trim() || '';
+            const rental_price = buildingForm.querySelector('#b-price')?.value || '';
+            const num_bedrooms = buildingForm.querySelector('#b-bedrooms')?.value || '';
+            const num_bathrooms = buildingForm.querySelector('#b-bathrooms')?.value || '';
+            const square_meters = buildingForm.querySelector('#b-sqft')?.value || '';
+            const amenitiesRaw = buildingForm.querySelector('#b-amenities')?.value || '';
+            const owner_contact = buildingForm.querySelector('#b-contact')?.value || '';
+            const description = buildingForm.querySelector('#b-description')?.value.trim() || '';
+            const locationRaw = buildingForm.querySelector('#b-coords')?.value.trim() || '';
+            const imageInput = buildingForm.querySelector('#b-image');
+            const imageFile = imageInput?.files[0] || null;
+
             if (!address) return alert('Address is required');
-            if (!location) return alert('Location is required');
+            if (!locationRaw) return alert('Location is required');
             if (!rental_price) return alert('Rental price is required');
 
-            // Validate location format: lat, long
-            const coords = location.replace(/\s+/g,'').split(',');
-            if (coords.length !== 2 || isNaN(Number(coords[0])) || isNaN(Number(coords[1]))) return alert('Coordinates must be "lat, long"');
+            if (title.length > 150) return alert('Title must not exceed 150 characters.');
+            if (description.length > 500) return alert('Description must not exceed 500 characters.');
 
-            // Validate image file (if provided): must be an image and <= 2MB
-            const imageInput = document.getElementById('b-image');
-            if (imageInput && imageInput.files && imageInput.files.length > 0) {
-              const f = imageInput.files[0];
-              const maxSize = 2 * 1024 * 1024; // 2MB
-              if (f.size > maxSize) {
-                return alert('Image size must not exceed 2 MB. Please choose a smaller image.');
-              }
-              if (f.type && !f.type.startsWith('image/')) {
-                return alert('Selected file is not an image. Please choose an image file.');
-              }
+            const amenities = amenitiesRaw.split(',').map(a=>a.trim()).filter(a=>a.length>0);
+
+            const coords = locationRaw.split(',').map(c=>c.trim());
+            if (coords.length !==2 || isNaN(coords[0]) || isNaN(coords[1])) 
+                return alert('Location must be in format "latitude, longitude"');
+
+            if (imageFile){
+                if (!imageFile.type.startsWith('image/')) return alert('Uploaded file must be an image.');
+                if (imageFile.size > 2*1024*1024) return alert('Image size must not exceed 2 MB.');
             }
 
-            const formData = new FormData(buildingForm);
-            // ensure the location field is passed as 'location' (already named)
-
-            // append image file if present (already included by FormData automatically)
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('address', address);
+            if (district) formData.append('district', district);
+            formData.append('rental_price', rental_price);
+            if (num_bedrooms) formData.append('num_bedrooms', num_bedrooms);
+            if (num_bathrooms) formData.append('num_bathrooms', num_bathrooms);
+            if (square_meters) formData.append('square_meters', square_meters);
+            if (amenities.length) formData.append('amenities', JSON.stringify(amenities));
+            if (owner_contact) formData.append('owner_contact', owner_contact);
+            if (description) formData.append('description', description);
+            formData.append('location', `${parseFloat(coords[0])},${parseFloat(coords[1])}`);
+            if (imageFile) formData.append('image', imageFile);
 
             try {
-                const resp = await fetch('/rentals/api/v1/buildings/', {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': 'Bearer ' + window.sessionStorage.getItem('access_token')
-                    },
-                    body: formData
-                });
-                if (!resp.ok){
-                    const err = await resp.json().catch(()=>null);
-                    alert('Failed to create listing: ' + (err ? JSON.stringify(err) : resp.statusText));
+                const response = await authFetch('/rentals/api/v1/buildings/', { method: 'PUT', body: formData });
+                if (!response.ok){
+                    const err = await response.json().catch(()=>null);
+                    alert('Failed to create listing: ' + (err ? JSON.stringify(err) : response.statusText));
                     return;
                 }
-                // success
-                BuildingModalController.hide(); // Refactored call
-                // Refresh listing if refresh button exists
-                const refreshBtn = document.getElementById('refresh-list'); if (refreshBtn) refreshBtn.click();
+
+                BuildingModalController.hide();
+                const refreshBtn = document.getElementById('refresh-list');
+                if (refreshBtn) refreshBtn.click();
+
             } catch (err){
+                console.error('Failed to submit building:', err);
                 alert('Network error creating listing: ' + String(err));
             }
         });

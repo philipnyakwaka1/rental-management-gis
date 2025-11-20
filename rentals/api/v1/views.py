@@ -306,6 +306,7 @@ def check_modify_building_permission(request, building):
 
 @api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticatedOrReadOnly])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def building_list_create(request):
     if request.method == 'GET':
         buildings = Building.objects.all()
@@ -320,27 +321,17 @@ def building_list_create(request):
             return paginator.get_paginated_response(buildings_serialized)
 
     elif request.method == 'PUT':
-        # Accept multipart/form-data for image uploads
+        user = request.user
+        if not user or not user.is_authenticated:
+            return Response({'error': 'Authentication credentials were not provided.'}, status=status.HTTP_401_UNAUTHORIZED)
         try:
-            # Prefer authenticated user; fall back to explicit user_id in payload
-            if request.user and request.user.is_authenticated:
-                user = request.user
-            else:
-                user = User.objects.get(pk=request.data.get('user_id'))
             profile = Profile.objects.get(user=user)
-            check_create_building_permission(request, user.id)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
         except Profile.DoesNotExist:
             return Response({'error': 'Profile not found for the user'}, status=status.HTTP_404_NOT_FOUND)
-        except PermissionDenied as e:
-            return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
 
-        # Use DRF parsers to support file uploads; request.data will include files when multipart
         serializer = BuildingSerializer(data=request.data)
         if serializer.is_valid():
             instance = serializer.save()
-            # ensure association between profile and building
             profile.building.add(instance)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

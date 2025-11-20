@@ -17,9 +17,9 @@ class Building(models.Model):
     rental_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, default=None)
     num_bedrooms = models.IntegerField(null=True, default=None)
     num_bathrooms = models.IntegerField(null=True, default=None)
-    square_footage = models.IntegerField(null=True, default=None)
+    square_meters = models.DecimalField(max_digits=10, decimal_places=2, null=True, default=None)
     is_available = models.BooleanField(default=True)
-    description = models.TextField(null=True, default=None)
+    description = models.TextField(max_length=1000, null=True, default=None)
     amenities = models.JSONField(null=True, default=None)
     owner_contact = models.CharField(max_length=100, null=True, default=None)
 
