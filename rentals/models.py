@@ -4,10 +4,14 @@ from django.contrib.auth.models import User
 
 class Building(models.Model):
     """Model representing a building with geographic location and rental details."""
+    title = models.CharField(max_length=150, null=True, default=None)
     county = models.CharField(max_length=100, null=True, default=None)
     district = models.CharField(max_length=100, null=True, default=None)
     address = models.CharField(max_length=255, null=True, default=None)
-    location = gis_models.PointField(spatial_index=True, srid=4326)
+    location = gis_models.PointField(spatial_index=True, srid=4326, null=False, blank=False)
+    image = models.ImageField(upload_to='buildings/%Y/%m/%d/', null=True, blank=True)
+    pets_allowed = models.BooleanField(default=False)
+    available_from = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     rental_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, default=None)
