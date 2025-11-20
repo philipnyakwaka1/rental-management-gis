@@ -1,0 +1,31 @@
+/* Ensure the body and HTML take up the full view */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+header {
+    background-color: #333;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    z-index: 1000; /* Ensure header is above map elements if needed */
+}
+
+/* Map container must have a defined height */
+#map {
+    height: calc(100vh - 50px); /* Subtract header height for full remaining screen space */
+    width: 100%;
+    z-index: 1; /* Keep map below popups/controls */
+}
+
+/* Styles for the proximity buffer area */
+.buffer-area {
+    /* fill-color: #1f78b4; */
+    color: #1f78b4;
+    /* weight: 2; */
+    opacity: 0.7;
+    fill-opacity: 0.2;
+}

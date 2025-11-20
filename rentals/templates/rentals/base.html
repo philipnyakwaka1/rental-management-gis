@@ -1,0 +1,75 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Rental Listings{% endblock %}</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="{% static 'rentals/css/map.css' %}">
+    <link rel="stylesheet" href="{% static 'rentals/css/super-header.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="demo-with-super-header">
+{% include 'partials/super_header.html' %}
+
+<!-- Demo app navbar (appears below the super-header) -->
+<nav class="navbar navbar-expand-lg navbar-light bg-light demo-navbar" aria-label="Demo navigation">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="{% url 'rentals:rentals_listings' %}">Rentals</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#demoNav" aria-controls="demoNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="demoNav">
+            <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:rentals_listings' %}">Home / Map</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:register_user' %}">Register</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:login_user' %}">Sign in</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:logout_user' %}">Sign out</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:user_account' %}">My listings</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<main>
+{% if messages %}
+<div class="container mt-3">
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}" role="alert">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% block content %}
+{% endblock %}
+
+{% block extra_js %}
+{% endblock %}
+<!-- Bootstrap JS bundle -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+</main>
+<script src="{% static 'rentals/js/logout.js' %}"></script>
+<script>
+    // Show client-side logout message (set by logout.js)
+    (function(){
+        try {
+            const msg = window.localStorage.getItem('logout_message');
+            if (msg) {
+                const main = document.querySelector('main');
+                const container = document.createElement('div');
+                container.className = 'container mt-3';
+                container.innerHTML = `<div class="alert alert-success" role="alert">${msg}</div>`;
+                if (main) main.insertBefore(container, main.firstChild);
+                localStorage.removeItem('logout_message');
+            }
+        } catch (e) {}
+    })();
+</script>
+</body>
+</html>

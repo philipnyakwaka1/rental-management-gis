@@ -1,0 +1,26 @@
+:root {
+  --super-header-height: 44px;
+}
+
+.super-header {
+  height: var(--super-header-height);
+  padding-top: 6px;
+  padding-bottom: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  z-index: 1070; /* higher than normal navbar */
+  transition: top .18s ease;
+}
+
+/* ensure main demo content is not hidden under the fixed header */
+body.demo-with-super-header {
+  padding-top: calc(var(--super-header-height) + 0.5rem);
+}
+
+/* small helper for the floating button variant (if used) */
+.super-portfolio-pill { 
+  position: fixed; top: 12px; right: 12px; z-index: 1080;
+}
+
+.visually-hidden-focusable:focus {
+  position: static; clip: auto; width: auto; height: auto; margin: 0.5rem;
+}
