@@ -1,0 +1,41 @@
+{% extends 'rentals/base.html' %}
+{% load static %}
+
+{% block title %}Sign in{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'rentals/css/forms.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div id="parent" class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <h4>Sign in</h4>
+          <form method="post" action="/rentals/api/v1/users/login/" novalidate>
+            {% csrf_token %}
+            <div class="mb-2">
+              <label class="form-label required">Username</label>
+              <input name="username" class="form-control" required />
+            </div>
+            <div class="mb-2">
+              <label class="form-label required">Password</label>
+              <input name="password" type="password" class="form-control" required />
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-3">
+              <button type="submit" class="btn btn-primary">Sign in</button>
+              <a href="{% url 'rentals:register_user' %}" class="small">Create account</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'rentals/js/login.js' %}"></script>
+{% endblock %}

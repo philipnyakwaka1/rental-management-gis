@@ -1,0 +1,24 @@
+:root {
+  --input-bg: #F3F4F6;
+  --required-color: #d9534f;
+}
+
+/* shaded inputs */
+.form-control { 
+  background: var(--input-bg);
+  border-radius: 6px;
+  border: 1px solid rgba(0,0,0,0.08);
+}
+
+/* required asterisk on labels */
+.form-label.required::after {
+  content: " *";
+  color: var(--required-color);
+  margin-left: 3px;
+}
+
+/* password area hidden by default */
+.password-area { display: none; }
+.password-area.show { display: block; }
+
+.small-toggle { cursor: pointer; color: #0d6efd; text-decoration: underline; }

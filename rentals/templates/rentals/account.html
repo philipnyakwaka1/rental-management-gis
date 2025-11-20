@@ -1,0 +1,213 @@
+{% extends 'rentals/base.html' %}
+{% load static %}
+
+{% block title %}Account - Rental Listings{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'rentals/css/forms.css' %}">
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="row">
+    <div class="col-12">
+      <h2 class="mb-3">My Account</h2>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <h4>Profile</h4>
+          <p class="text-muted">Update account details</p>
+
+          <form id="account-update-form" method="post" action="/rentals/api/v1/users/me/" novalidate>
+            {% csrf_token %}
+            <div class="mb-2">
+              <input type="hidden" id="current-username" value="" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Email</label>
+              <input name="email" type="email" class="form-control" required />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">First name</label>
+              <input name="first_name"  class="form-control" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Last name</label>
+              <input name="last_name"  class="form-control" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Phone</label>
+              <input name="phone"  class="form-control" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Address</label>
+              <input name="address"  class="form-control" />
+            </div>
+
+            <div class="mb-3">
+              <a id="toggle-password-area" class="small-toggle">Change password</a>
+            </div>
+
+            <div id="password-area" class="password-area">
+              <div class="mb-2">
+                <label class="form-label required">Old password</label>
+                <input id="id_old_password" name="old_password" type="password" class="form-control" />
+              </div>
+              <div class="mb-2">
+                <label class="form-label required">New password</label>
+                <input id="id_new_password1" name="new_password1" type="password" class="form-control" />
+              </div>
+              <div class="mb-2">
+                <label class="form-label required">Confirm new password</label>
+                <input id="id_new_password2" name="new_password2" type="password" class="form-control" />
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+              <button type="submit" class="btn btn-primary">Save changes</button>
+              <button id="open-delete-account" type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteAccount">Delete account</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <h4>My Buildings</h4>
+          <p class="text-muted">Create new buildings or update your existing ones.</p>
+
+          <div class="d-flex gap-2 mb-3">
+            <button id="open-create-modal" class="btn btn-success">Create Listing</button>
+            <button id="refresh-list" class="btn btn-outline-secondary">Refresh</button>
+          </div>
+
+          <hr />
+          <h5 class="mt-3">Your listings</h5>
+          <div id="user-buildings-list" data-user-pk="" data-is-auth="{% if user.is_authenticated %}true{% else %}false{% endif %}">
+            <div class="text-muted">Loading listings…</div>
+          </div>
+          <nav id="listing-pagination" aria-label="Page navigation" class="mt-3"></nav>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create / Edit Building Modal -->
+<div class="modal fade" id="buildingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 id="buildingModalTitle" class="modal-title">Create Listing</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="building-form">
+        <div class="modal-body">
+          <input type="hidden" id="building-id" />
+          <div class="mb-2">
+            <label class="form-label required">Address</label>
+            <input id="b-address" name="address" class="form-control" required />
+          </div>
+          <div class="mb-2">
+            <label class="form-label">District</label>
+            <input id="b-district" name="district" class="form-control" />
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col">
+              <label class="form-label required">Rental price</label>
+              <input id="b-price" name="rental_price" class="form-control" type="number" step="0.01" required />
+            </div>
+            <div class="col">
+              <label class="form-label">Spec (bedrooms)</label>
+              <input id="b-bedrooms" name="num_bedrooms" class="form-control" type="number" />
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col">
+              <label class="form-label">Bathrooms</label>
+              <input id="b-bathrooms" name="num_bathrooms" class="form-control" type="number" />
+            </div>
+            <div class="col">
+              <label class="form-label">Square footage</label>
+              <input id="b-sqft" name="square_footage" class="form-control" type="number" />
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Amenities (comma separated)</label>
+            <input id="b-amenities" name="amenities" class="form-control" />
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Owner contact</label>
+            <input id="b-contact" name="owner_contact" class="form-control" />
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Title</label>
+            <input id="b-title" name="title" class="form-control" placeholder="Short title for listing" />
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Image</label>
+            <input id="b-image" name="image" class="form-control" type="file" accept="image/*" />
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Description</label>
+            <textarea id="b-description" name="description" class="form-control" rows="3"></textarea>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Location (latitude, longitude)</label>
+            <div class="input-group">
+              <input id="b-coords" name="location" class="form-control" placeholder="e.g. -1.2921, 36.8219 (lat, long)" required />
+              <button id="use-device-location" class="btn btn-outline-secondary" type="button">Use device location</button>
+            </div>
+            <div class="form-text text-muted">Enter coordinates as <strong>latitude, longitude</strong> (comma separated).</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button id="building-save" type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm delete account modal -->
+<div class="modal fade" id="confirmDeleteAccount" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger">Delete account</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Deleting your account is permanent. To confirm, please enter your password.</p>
+        <form id="confirm-delete-form" method="post" action="/rentals/api/v1/users/me/">
+          {% csrf_token %}
+          <div class="mb-2">
+            <label class="form-label">Password</label>
+            <input name="password_confirm" type="password" class="form-control" required />
+          </div>
+          <div class="form-text text-muted">After confirming, the site will attempt to delete your user account.</div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button id="btn-confirm-delete" type="button" class="btn btn-danger">Delete account</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'rentals/js/account.js' %}"></script>
+  <script src="{% static 'rentals/js/passwordPolicy.js' %}"></script>
+  <script src="{% static 'rentals/js/register.js' %}"></script>
+{% endblock %}
+

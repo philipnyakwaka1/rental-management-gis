@@ -30,17 +30,18 @@ class APITestCase(TestCase):
         self.building.profiles.add(self.user.profile)
 
         # endpoints
-        self.user_list_url = reverse('user-list')
-        self.user_detail_url = lambda pk: reverse('user-detail', kwargs={'pk': pk})
-        self.profile_detail_url = lambda pk: reverse('profile-detail', kwargs={'pk': pk})
-        self.user_buildings_url = lambda pk: reverse('user-buildings', kwargs={'pk': pk})
-        self.building_list_url = reverse('building-list-create')
-        self.building_detail_url = lambda pk: reverse('building-detail', kwargs={'pk': pk})
-        self.building_profiles_url = lambda building_pk, user_pk: reverse('building-profiles', kwargs={'building_pk': building_pk, 'user_pk': user_pk})
-        self.building_profiles_list_url = lambda building_pk: reverse('building-profiles-list', kwargs={'building_pk': building_pk})
+        self.user_list_url = reverse('rentals:user-list')
+        # pk-based endpoints (used by permission tests)
+        self.user_detail_url = lambda pk: reverse('rentals:user-detail', kwargs={'pk': pk})
+        self.profile_detail_url = lambda pk: reverse('rentals:profile-detail', kwargs={'pk': pk})
+        self.user_buildings_url = lambda pk: reverse('rentals:user-buildings', kwargs={'pk': pk})
+        self.building_list_url = reverse('rentals:building-list-create')
+        self.building_detail_url = lambda pk: reverse('rentals:building-detail', kwargs={'pk': pk})
+        self.building_profiles_url = lambda building_pk, user_pk: reverse('rentals:building-profiles', kwargs={'building_pk': building_pk, 'user_pk': user_pk})
+        self.building_profiles_list_url = lambda building_pk: reverse('rentals:building-profiles-list', kwargs={'building_pk': building_pk})
 
     def _login_and_get_token(self, username, password):
-        login_url = reverse('user-login')
+        login_url = reverse('rentals:user-login')
         resp = self.client.post(login_url, data={'username': username, 'password': password}, format='json')
         return resp
 
@@ -166,3 +167,18 @@ class APITestCase(TestCase):
     def tearDown(self):
         # Reconnect the profile-creation signal so other test modules relying on it work correctly
         post_save.connect(signals.create_user_profile, sender=User)
+
+    def test_me_endpoints_access(self):
+        # user can access their own /users/me/ endpoints
+        token_resp = self._login_and_get_token('user1', 'StrongP@ss1')
+        access = token_resp.data.get('access')
+        client = APIClient(); client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
+
+        r = client.get(reverse('rentals:user-detail-me'))
+        self.assertEqual(r.status_code, 200)
+
+        r2 = client.get(reverse('rentals:profile-detail-me'))
+        self.assertEqual(r2.status_code, 200)
+
+        r3 = client.get(reverse('rentals:user-buildings-me'))
+        self.assertIn(r3.status_code, (200, 204))
