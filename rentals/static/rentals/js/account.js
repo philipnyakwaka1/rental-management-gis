@@ -18,43 +18,89 @@
     }
   })();
 
-  // fetch account details and populate the form
-  (async function(){
-    const form = document.getElementById('account-update-form');
-    if (!form) return;
+  // Fetch account details and populate the form
+(async function () {
+  const form = document.getElementById('account-update-form');
+  if (!form) return;
 
-    try {
-      const response = await fetch('/rentals/api/v1/users/me/',
-        { method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + window.sessionStorage.getItem('access_token')
-          }
-        }
-      );
-      if (!response.ok) throw new Error(`Error fetching user data: ${response.status} ${response.statusText}`);
-      const data = await response.json();
+  // Reusable authenticated fetch with auto-refresh
+  async function authFetch(url, options = {}) {
+    const accessToken = window.sessionStorage.getItem('access_token');
 
-      // Populate form fields
-          // Populate form fields; username is stored in a hidden JS-only input `#current-username`
-          ['username','email','first_name','last_name','phone','address'].forEach(field=>{
-            let input = null;
-            if (field === 'username') {
-              input = form.querySelector('#current-username');
-            }
-            if (!input) input = form.querySelector(`[name="${field}"]`);
-            if (input && data[field] !== undefined) {
-              input.value = data[field];
-            }
-          });
-      const phoneInput = form.querySelector(`[name="phone"]`);
-      const addressInput = form.querySelector(`[name="address"]`);
-      if (phoneInput) phoneInput.value = data.profile ? data.profile.phone_number : '';
-      if (addressInput) addressInput.value = data.profile ? data.profile.address : '';
-    } catch (error) {
-      console.error('Failed to load account details:', error);
+    options.headers = {
+      ...(options.headers || {}),
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + accessToken
+    };
+
+    let response = await fetch(url, options);
+
+    // If access token expired → attempt refresh
+    if (response.status === 401) {
+      console.warn('Access token expired. Attempting refresh...');
+
+      const refreshResponse = await fetch('/rentals/api/v1/users/refresh-token/', {
+        method: 'GET',
+        credentials: 'include' // send refresh cookie
+      });
+
+      if (!refreshResponse.ok) {
+        console.warn('Refresh failed. Redirecting to login.');
+        window.location.href = '/rentals/user/login/';
+        return;
+      }
+
+      // Save new access token
+      const refreshData = await refreshResponse.json();
+      const newAccess = refreshData.access;
+      window.sessionStorage.setItem('access_token', newAccess);
+
+      // Retry original request with new token
+      options.headers['Authorization'] = 'Bearer ' + newAccess;
+      response = await fetch(url, options);
     }
-  })();
+
+    return response;
+  }
+
+  try {
+    // Use the authFetch wrapper
+    const response = await authFetch('/rentals/api/v1/users/me/', { method: 'GET' });
+    if (!response || !response.ok)
+      throw new Error(`Error fetching user data: ${response?.status} ${response?.statusText}`);
+
+    const data = await response.json();
+
+    // Populate form fields
+    ['username', 'email', 'first_name', 'last_name', 'phone', 'address'].forEach(field => {
+      let input = null;
+
+      // username is stored in special field #current-username
+      if (field === 'username') {
+        input = form.querySelector('#current-username');
+      }
+
+      if (!input) {
+        input = form.querySelector(`[name="${field}"]`);
+      }
+
+      // Populate only if exists
+      if (input) {
+        if (field === 'phone') {
+          input.value = data.profile ? data.profile.phone_number : '';
+        } else if (field === 'address') {
+          input.value = data.profile ? data.profile.address : '';
+        } else if (data[field] !== undefined) {
+          input.value = data[field];
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Failed to load account details:', error);
+  }
+})();
+
 
   // Building create/edit modal handling
   (function(){
@@ -163,6 +209,19 @@
             // Validate location format: lat, long
             const coords = location.replace(/\s+/g,'').split(',');
             if (coords.length !== 2 || isNaN(Number(coords[0])) || isNaN(Number(coords[1]))) return alert('Coordinates must be "lat, long"');
+
+            // Validate image file (if provided): must be an image and <= 2MB
+            const imageInput = document.getElementById('b-image');
+            if (imageInput && imageInput.files && imageInput.files.length > 0) {
+              const f = imageInput.files[0];
+              const maxSize = 2 * 1024 * 1024; // 2MB
+              if (f.size > maxSize) {
+                return alert('Image size must not exceed 2 MB. Please choose a smaller image.');
+              }
+              if (f.type && !f.type.startsWith('image/')) {
+                return alert('Selected file is not an image. Please choose an image file.');
+              }
+            }
 
             const formData = new FormData(buildingForm);
             // ensure the location field is passed as 'location' (already named)
