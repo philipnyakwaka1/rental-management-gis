@@ -1,9 +1,10 @@
 # rest_framework imports
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, parser_classes
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, IsAuthenticatedOrReadOnly
 from rest_framework.decorators import permission_classes
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.exceptions import PermissionDenied
 
 # Model imports
@@ -126,6 +127,105 @@ def user_list(request):
     users = list(map(lambda x: {**UserSerializer(x).data, 'profile': ProfileSerializer(x.profile).data}, paginated_users))
     return paginator.get_paginated_response(users)
 
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def user_detail_me(request):
+    """Operate on the authenticated user's account (GET, PATCH, DELETE).
+    This mirrors `user_detail` but always uses request.user fetched fresh from DB.
+    """
+    try:
+        # Re-fetch user from DB to ensure up-to-date object
+        user = User.objects.get(pk=request.user.pk)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = UserSerializer(user)
+        profile_serializer = ProfileSerializer(user.profile)
+        data = {**serializer.data, 'profile': profile_serializer.data}
+        return Response(data, status=status.HTTP_200_OK)
+    elif request.method == 'PATCH':
+        #If data contains phone number or address, update profile as well
+        profile_data = {}
+        if 'phone' in request.data:
+            profile_data['phone_number'] = request.data['phone']
+        if 'address' in request.data:
+            profile_data['address'] = request.data['address']
+        
+        if profile_data:
+            profile_serializer = ProfileSerializer(user.profile, data=profile_data, partial=True)
+            if profile_serializer.is_valid():
+                profile_serializer.save()
+            else:
+                return Response(profile_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = UserSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'User updated successfully', 'user': serializer.data}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    elif request.method == 'DELETE':
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def profile_detail_me(request):
+    """Operate on the authenticated user's profile (GET, PATCH, DELETE).
+    Mirrors `profile_detail` but uses request.user.
+    """
+    try:
+        user = User.objects.get(pk=request.user.pk)
+        profile = Profile.objects.get(user=user)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Profile.DoesNotExist:
+        return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = ProfileSerializer(profile)
+        user_serializer = UserSerializer(user)
+        data = {**user_serializer.data, 'profile': serializer.data}
+        return Response(data, status=status.HTTP_200_OK)
+    elif request.method == 'PATCH':
+        serializer = ProfileSerializer(profile, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Profile updated successfully', 'profile': serializer.data}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    elif request.method == 'DELETE':
+        profile.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_buildings_me(request):
+    """Return buildings for the authenticated user (paginated geojson or full geojson parameter).
+    Mirrors `user_buildings` but uses request.user.
+    """
+    try:
+        # ensure up-to-date user/profile
+        user = User.objects.get(pk=request.user.pk)
+        profile = Profile.objects.get(user=user)
+        buildings = profile.building.all()
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Profile.DoesNotExist:
+        return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    geojson = request.query_params.get('geojson', 'false').lower()
+    if geojson == 'true':
+        buildings_geojson = serializers.serialize('geojson', buildings)
+        return Response(buildings_geojson, status=status.HTTP_200_OK, content_type='application/json')
+    else:
+        paginator = CustomPagination()
+        paginated_buildings = paginator.paginate_queryset(buildings, request)
+        buildings_serialized = list(map(lambda x: serializers.serialize('geojson', [x]), paginated_buildings))
+        return paginator.get_paginated_response(buildings_serialized)
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_buildings(request, pk):
@@ -212,7 +312,7 @@ def building_list_create(request):
         geojson = request.query_params.get('geojson', 'false').lower()
         if geojson == 'true':
             buildings_geojson = serializers.serialize('geojson', buildings)
-            return Response(buildings_geojson, status=status.HTTP_200_OK, content_type='application/json')
+            return Response(buildings_geojson, status=status.HTTP_200_OK)
         else:
             paginator = CustomPagination()
             paginated_buildings = paginator.paginate_queryset(buildings, request)
@@ -220,8 +320,13 @@ def building_list_create(request):
             return paginator.get_paginated_response(buildings_serialized)
 
     elif request.method == 'PUT':
+        # Accept multipart/form-data for image uploads
         try:
-            user = User.objects.get(pk=request.data.get('user_id'))
+            # Prefer authenticated user; fall back to explicit user_id in payload
+            if request.user and request.user.is_authenticated:
+                user = request.user
+            else:
+                user = User.objects.get(pk=request.data.get('user_id'))
             profile = Profile.objects.get(user=user)
             check_create_building_permission(request, user.id)
         except User.DoesNotExist:
@@ -231,15 +336,18 @@ def building_list_create(request):
         except PermissionDenied as e:
             return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
 
+        # Use DRF parsers to support file uploads; request.data will include files when multipart
         serializer = BuildingSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            profile.building.add(serializer.instance)
+            instance = serializer.save()
+            # ensure association between profile and building
+            profile.building.add(instance)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticatedOrReadOnly])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def building_detail(request, pk):
     try:
         building = Building.objects.get(pk=pk)
@@ -250,7 +358,7 @@ def building_detail(request, pk):
         geojson = request.query_params.get('geojson', 'false').lower()
         if geojson == 'true':
             building_geojson = serializers.serialize('geojson', [building])
-            return Response(building_geojson, status=status.HTTP_200_OK, content_type='application/json')
+            return Response(building_geojson, status=status.HTTP_200_OK)
         else:
             serializer = BuildingSerializer(building)
             return Response(serializer.data, status=status.HTTP_200_OK)
