@@ -1,27 +1,35 @@
-(function(){
-  async function doLogout(e){
+(function () {
+  async function doLogout(e) {
     if (e) e.preventDefault();
-    const token = window.localStorage.getItem('access_token');
+
+    const token = window.sessionStorage.getItem('access_token')
+
     try {
-      // attempt to call API logout so server can clear refresh cookie if present
-      await fetch('/rentals/api/v1/users/logout/', { method: 'GET', headers: token ? {'Authorization':'Bearer '+token} : {} });
+      await fetch('/rentals/api/v1/users/logout/', {
+        method: 'GET',
+        credentials: 'include',
+        headers: token
+          ? { 'Authorization': 'Bearer ' + token }
+          : {}
+      });
     } catch (err) {
-      // ignore network errors, continue clearing client state
+      console.warn('Logout request failed, clearing client state anyway.');
     }
-    window.localStorage.removeItem('access_token');
-    window.localStorage.setItem('logout_message', 'You have been logged out.');
-    // redirect to map root
-    window.location.href = '/';
+
+    window.sessionStorage.removeItem('access_token');
+    window.sessionStorage.setItem('logout_message', 'You have been logged out.');
+    window.location.href = '/rentals/';
   }
 
-  // attach to any logout link that matches the path
-  document.addEventListener('click', function(e){
+  document.addEventListener('click', function (e) {
     const a = e.target.closest('a');
     if (!a) return;
     const href = a.getAttribute('href');
     if (!href) return;
+
     if (href.endsWith('/user/logout/') || href.endsWith('/user/logout')) {
       doLogout(e);
     }
   });
 })();
+

@@ -77,16 +77,11 @@ class BuildingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Building
         fields = '__all__'
-        extra_kwargs = {'user_id': {'read_only': True}, 'created_at': {'read_only': True}, 'updated_at': {'read_only': True}}
-    
-    def validate_user_id(self, value):
-        try:
-            User.objects.get(id=value)
-            int(value)
-        except User.DoesNotExist:
-            raise serializers.ValidationError("User with the given ID does not exist.")
-        except ValueError:
-            raise serializers.ValidationError("User ID must be an integer.")
+        extra_kwargs = {'created_at': {'read_only': True}, 'updated_at': {'read_only': True}}
+
+    def validate_image(self, value):
+        if value.size > 2 * 1024 * 1024:
+            raise serializers.ValidationError("Image size should not exceed 2MB.")
         return value
     
     def validate_location(self, value):
