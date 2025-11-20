@@ -173,6 +173,53 @@
         });
     }
 
+    // wire building listings for this account page (fetch user buildings)
+    let listings = null;
+    try {
+      listings = window.RentalsListings.createListings({
+        apiUrl: '/rentals/api/v1/users/me/buildings/',
+        container: '#user-buildings-list',
+        pagination: '#listing-pagination',
+        fetcher: authFetch,
+        onShow: function(f){
+          // redirect to map page with highlight query param (attempt id first, else lat,lng)
+          const props = f.properties || {};
+          const id = props.id || props.pk;
+          if(id) return window.location.href = `/rentals/map/?highlight=${id}`;
+          if(f.geometry && f.geometry.coordinates){
+            const coords = f.geometry.coordinates; return window.location.href = `/rentals/map/?highlight=${coords[1]},${coords[0]}`;
+          }
+        },
+        onUpdate: function(f){
+          // Prefill modal and switch form to update mode
+          const p = f.properties || {};
+          const idEl = document.getElementById('building-id');
+          if (idEl) idEl.value = p.id || p.pk || '';
+          const set = (sel, v) => { const el = document.getElementById(sel); if(el) el.value = v || ''; };
+          set('b-title', p.title);
+          set('b-address', p.address);
+          set('b-district', p.district);
+          set('b-price', p.rental_price);
+          set('b-bedrooms', p.num_bedrooms);
+          set('b-bathrooms', p.num_bathrooms);
+          set('b-sqft', p.square_footage);
+          set('b-amenities', Array.isArray(p.amenities) ? p.amenities.join(', ') : (typeof p.amenities === 'string' ? p.amenities : ''));
+          set('b-contact', p.owner_contact);
+          set('b-description', p.description);
+          if(p.location && typeof p.location === 'string'){
+            set('b-coords', p.location);
+          } else if (f.geometry && f.geometry.coordinates){
+            set('b-coords', `${f.geometry.coordinates[1]}, ${f.geometry.coordinates[0]}`);
+          }
+          BuildingModalController.show();
+        }
+      });
+      // wire refresh button
+      const refreshBtn = document.getElementById('refresh-list'); if (refreshBtn) refreshBtn.addEventListener('click', function(e){ e.preventDefault(); if(listings) listings.refresh(); });
+      // initial load
+      if (listings) listings.fetchPage(1);
+    } catch (e) { console.warn('Listings init failed', e); }
+
     if (buildingForm){
         buildingForm.addEventListener('submit', async function(e){
             e.preventDefault();
@@ -225,11 +272,24 @@
             if (imageFile) formData.append('image', imageFile);
 
             try {
-                const response = await authFetch('/rentals/api/v1/buildings/', { method: 'PUT', body: formData });
-                if (!response.ok){
+                const buildingId = document.getElementById('building-id')?.value || null;
+                if (buildingId){
+                  // update existing building
+                  const url = `/rentals/api/v1/buildings/${buildingId}/`;
+                  const response = await authFetch(url, { method: 'PATCH', body: formData });
+                  if (!response.ok){
+                    const err = await response.json().catch(()=>null);
+                    alert('Failed to update listing: ' + (err ? JSON.stringify(err) : response.statusText));
+                    return;
+                  }
+                } else {
+                  // create new building
+                  const response = await authFetch('/rentals/api/v1/buildings/', { method: 'PUT', body: formData });
+                  if (!response.ok){
                     const err = await response.json().catch(()=>null);
                     alert('Failed to create listing: ' + (err ? JSON.stringify(err) : response.statusText));
                     return;
+                  }
                 }
 
                 BuildingModalController.hide();
@@ -238,9 +298,12 @@
 
             } catch (err){
                 console.error('Failed to submit building:', err);
-                alert('Network error creating listing: ' + String(err));
+                alert('Network error creating/updating listing: ' + String(err));
             }
         });
     }
 })();
+
+//Listings
+
 })();
