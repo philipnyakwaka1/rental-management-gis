@@ -62,7 +62,47 @@
     document.getElementById('geo-locate').addEventListener('click', useMyLocation);
     document.getElementById('submit-create').addEventListener('click', submitCreate);
 
-    fetchPage(1);
+    // Initialize shared listings renderer
+    const listings = window.RentalsListings.createListings({
+      apiUrl: `${API_BASE}/buildings/`,
+      container: '#listings',
+      pagination: '#pagination',
+      onShow: function(f){
+        const coords = f.geometry && f.geometry.coordinates;
+        if(!coords) return;
+        map.flyTo([coords[1], coords[0]], 16);
+
+        const props = f.properties || {};
+        const key = props.id || props.pk || `${coords[0].toFixed(6)}_${coords[1].toFixed(6)}`;
+
+        if(activeHighlight && activeHighlight.layer){
+          try{ activeHighlight.layer.setIcon(activeHighlight.prevIcon); }catch(e){}
+          activeHighlight = null;
+        }
+
+        const baseLayerMarker = idToLayer.get(String(key));
+        if(baseLayerMarker){
+          const prev = baseLayerMarker.options && baseLayerMarker.options.icon ? baseLayerMarker.options.icon : null;
+          const redIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconSize: [25,41],
+            iconAnchor: [12,41],
+            popupAnchor: [1,-34],
+            shadowSize: [41,41]
+          });
+          try{ baseLayerMarker.setIcon(redIcon); baseLayerMarker.openPopup(); activeHighlight = {layer: baseLayerMarker, prevIcon: prev}; }catch(e){ console.warn('setIcon failed', e); }
+          return;
+        }
+
+        const tmp = L.circleMarker([coords[1], coords[0]], {radius:10, color:'#ff0000', fillColor:'#ff0000', fillOpacity:1, weight:2}).addTo(map);
+        const popup = `<div><strong>${escapeHtml(props.address || 'Address')}</strong><br/>Price: ${escapeHtml(props.rental_price||'N/A')}</div>`;
+        tmp.bindPopup(popup).openPopup();
+        setTimeout(()=>{ try{ map.removeLayer(tmp); }catch(e){} }, 10000);
+      }
+    });
+
+    listings.fetchPage(1);
   }
 
   async function fetchPage(page=1){

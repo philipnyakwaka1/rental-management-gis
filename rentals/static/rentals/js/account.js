@@ -173,6 +173,83 @@
         });
     }
 
+    // shared prefill function for update (used by onUpdate callback)
+    function prefillFeature(f){
+      if(!f) return;
+      const p = f.properties || {};
+      const idEl = document.getElementById('building-id');
+      if (idEl) idEl.value = p.id || p.pk || '';
+      const set = (sel, v) => { const el = document.getElementById(sel); if(el) el.value = v || ''; };
+      set('b-title', p.title);
+      set('b-address', p.address);
+      set('b-district', p.district);
+      set('b-price', p.rental_price);
+      set('b-bedrooms', p.num_bedrooms);
+      set('b-bathrooms', p.num_bathrooms);
+      set('b-sqft', p.square_footage);
+      set('b-amenities', Array.isArray(p.amenities) ? p.amenities.join(', ') : (typeof p.amenities === 'string' ? p.amenities : ''));
+      set('b-contact', p.owner_contact);
+      set('b-description', p.description);
+      if(p.location && typeof p.location === 'string'){
+        set('b-coords', p.location);
+      } else if (f.geometry && f.geometry.coordinates){
+        set('b-coords', `${f.geometry.coordinates[1]}, ${f.geometry.coordinates[0]}`);
+      }
+      BuildingModalController.show();
+    }
+
+    // shared delete function for listings (used by onDelete callback)
+    async function deleteFeature(f){
+      if(!f) return;
+      const p = f.properties || {};
+      const id = p.id || p.pk;
+      
+      if(!confirm('Delete this listing? This action cannot be undone.')) {
+        return;
+      }
+      
+      try {
+        const resp = await authFetch(`/rentals/api/v1/buildings/${id}/`, { method: 'DELETE' });
+        if (!resp.ok) {
+          const err = await resp.json().catch(()=>null);
+          alert('Failed to delete: ' + (err ? JSON.stringify(err) : resp.statusText));
+          return;
+        }
+        alert('Building successfully deleted');
+        const refreshBtn = document.getElementById('refresh-list');
+        if (refreshBtn) refreshBtn.click();
+      } catch (err) {
+        console.error('Delete failed', err);
+        alert('Network error: ' + String(err));
+      }
+    }
+
+    // wire building listings for this account page (fetch user buildings)
+    let listings = null;
+    try {
+      listings = window.RentalsListings.createListings({
+        apiUrl: '/rentals/api/v1/users/me/buildings/',
+        container: '#user-buildings-list',
+        pagination: '#listing-pagination',
+        fetcher: authFetch,
+        onShow: function(f){
+          // redirect to map page with highlight query param (attempt id first, else lat,lng)
+          const props = f.properties || {};
+          const id = props.id || props.pk;
+          if(id) return window.location.href = `/rentals/?highlight=${id}`;
+          if(f.geometry && f.geometry.coordinates){
+            const coords = f.geometry.coordinates; return window.location.href = `/rentals/?highlight=${coords[1]},${coords[0]}`;
+          }
+        },
+        onUpdate: function(f){ prefillFeature(f); },
+        onDelete: function(f){ deleteFeature(f); }
+      });
+      // wire refresh button
+      const refreshBtn = document.getElementById('refresh-list'); if (refreshBtn) refreshBtn.addEventListener('click', function(e){ e.preventDefault(); if(listings) listings.refresh(); });
+      // initial load
+      if (listings) listings.fetchPage(1);
+    } catch (e) { console.warn('Listings init failed', e); }
+
     if (buildingForm){
         buildingForm.addEventListener('submit', async function(e){
             e.preventDefault();
@@ -211,7 +288,7 @@
             }
 
             const formData = new FormData();
-            formData.append('title', title);
+            if (title) formData.append('title', title);
             formData.append('address', address);
             if (district) formData.append('district', district);
             formData.append('rental_price', rental_price);
@@ -225,11 +302,24 @@
             if (imageFile) formData.append('image', imageFile);
 
             try {
-                const response = await authFetch('/rentals/api/v1/buildings/', { method: 'PUT', body: formData });
-                if (!response.ok){
+                const buildingId = document.getElementById('building-id')?.value || null;
+                if (buildingId){
+                  // update existing building
+                  const url = `/rentals/api/v1/buildings/${buildingId}/`;
+                  const response = await authFetch(url, { method: 'PATCH', body: formData });
+                  if (!response.ok){
+                    const err = await response.json().catch(()=>null);
+                    alert('Failed to update listing: ' + (err ? JSON.stringify(err) : response.statusText));
+                    return;
+                  }
+                } else {
+                  // create new building
+                  const response = await authFetch('/rentals/api/v1/buildings/', { method: 'PUT', body: formData });
+                  if (!response.ok){
                     const err = await response.json().catch(()=>null);
                     alert('Failed to create listing: ' + (err ? JSON.stringify(err) : response.statusText));
                     return;
+                  }
                 }
 
                 BuildingModalController.hide();
@@ -238,9 +328,12 @@
 
             } catch (err){
                 console.error('Failed to submit building:', err);
-                alert('Network error creating listing: ' + String(err));
+                alert('Network error creating/updating listing: ' + String(err));
             }
         });
     }
 })();
+
+//Listings
+
 })();

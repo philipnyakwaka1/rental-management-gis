@@ -29,7 +29,7 @@
             </div>
             <div class="mb-2">
               <label class="form-label">Email</label>
-              <input name="email" type="email" class="form-control" required />
+              <input name="email" type="email" class="form-control"/>
             </div>
             <div class="mb-2">
               <label class="form-label">First name</label>
@@ -93,7 +93,6 @@
             <div class="text-muted">Loading listings…</div>
           </div>
           <nav id="listing-pagination" aria-label="Page navigation" class="mt-3"></nav>
-
         </div>
       </div>
     </div>
@@ -109,6 +108,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form id="building-form">
+        {% csrf_token %}
         <div class="modal-body">
           <input type="hidden" id="building-id" />
           <div class="mb-2">
@@ -160,7 +160,7 @@
             <textarea id="b-description" name="description" class="form-control" rows="3"></textarea>
           </div>
           <div class="mb-2">
-            <label class="form-label">Location (latitude, longitude)</label>
+            <label class="form-label required">Location (latitude, longitude)</label>
             <div class="input-group">
               <input id="b-coords" name="location" class="form-control" placeholder="e.g. -1.2921, 36.8219 (lat, long)" required />
               <button id="use-device-location" class="btn btn-outline-secondary" type="button">Use device location</button>
@@ -207,8 +207,8 @@
 {% endblock %}
 
 {% block extra_js %}
+  <script src="{% static 'rentals/js/listings.js' %}"></script>
   <script src="{% static 'rentals/js/account.js' %}"></script>
   <script src="{% static 'rentals/js/passwordPolicy.js' %}"></script>
   <script src="{% static 'rentals/js/register.js' %}"></script>
 {% endblock %}
-
