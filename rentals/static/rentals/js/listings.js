@@ -32,30 +32,21 @@
       if(!resp || !resp.ok){ console.error('Failed to fetch listings', resp && resp.status); return; }
       const data = await resp.json();
       pageNext = data.next; pagePrev = data.previous;
-      const items = (data.results || []).map(parseBuildingItem).filter(Boolean).map(normalizeFeature);
+      const items = (data.results || []).map(parseBuildingItem).filter(Boolean);
       renderListings(items);
       renderPagination();
-    }
-
-    function normalizeFeature(obj){
-      // If object is Feature already, return as-is
-      if(obj && obj.type === 'Feature') return obj;
-      // else construct a feature from properties
-      const props = obj || {};
-      const coords = (props.location && typeof props.location === 'string') ? props.location.split(',').map(s=>parseFloat(s.trim())) : null;
-      const geometry = coords && coords.length===2 ? { type: 'Point', coordinates: [coords[1], coords[0]] } : (props.geometry || null);
-      return { type: 'Feature', geometry: geometry, properties: props };
     }
 
     function renderListings(features){
       if(!container) return;
       container.innerHTML = '';
       features.forEach(f => {
-        const p = f.properties || {};
+        const feature = (f && f.features && Array.isArray(f.features) && f.features[0]) ? f.features[0] : f;
+        const p = (feature && feature.properties) ? feature.properties : {};
         const card = document.createElement('div');
         card.className = 'card mb-2';
         card.style.minWidth = '0';
-        const imgHtml = p.image ? `<img src="${escapeHtml(p.image)}" class="card-img-top img-fluid" style="object-fit:cover; height:180px;" alt="${escapeHtml(p.title||p.address||'Listing')}">` : '';
+        const imgHtml = p.image ? `<img src="/media/${escapeHtml(p.image)}" class="card-img-top img-fluid" style="object-fit:cover; height:180px;" alt="${escapeHtml(p.title||p.address||'Listing')}">` : '';
         const title = escapeHtml(p.title || p.address || 'Listing');
         const address = escapeHtml(p.address || '—');
         const phone = escapeHtml(p.owner_contact || (p.profile && p.profile.phone_number) || '—');
@@ -70,34 +61,44 @@
           <div class="card-body p-2">
             <h6 class="card-title mb-1">${title}</h6>
             <p class="mb-1 text-muted small">${address}</p>
-            <p class="mb-1"><strong>Price:</strong> ${price} &middot; <strong>District:</strong> ${district}</p>
-            <p class="mb-1"><strong>Specs:</strong> ${escapeHtml(specs)}</p>
-            <p class="mb-1"><strong>Owner:</strong> ${phone}</p>
-            <div class="d-flex gap-2 mt-2">
+            <p class="mb-1">Price (USD): ${price}</p>
+            <p class="mb-1">Location: ${district}</p>
+            <p class="mb-1">Specs: ${escapeHtml(specs)}</p>
+            <p class="mb-1">Owner's Contact: ${phone}</p>
+              <div class="d-flex gap-2 mt-2">
               <button class="btn btn-sm btn-outline-primary btn-show">Show</button>
               ${ onUpdate ? '<button class="btn btn-sm btn-outline-secondary btn-update">Update</button>' : '' }
+              ${ options.onDelete ? '<button class="btn btn-sm btn-outline-danger btn-delete">Delete</button>' : '' }
               <button class="btn btn-sm btn-link btn-details" data-bs-toggle="collapse" data-bs-target="#${descId}">Details</button>
             </div>
             <div class="collapse mt-2" id="${descId}">
               <div class="card card-body p-2 small">
-                <div><strong>Description</strong></div>
+                <div>Description</div>
                 <div>${escapeHtml(p.description || '')}</div>
                 <hr/>
-                <div><strong>Attributes</strong></div>
-                <div>Title: ${escapeHtml(p.title||'')}</div>
-                <div>Owner: ${phone}</div>
                 <div>Amenities: ${escapeHtml(typeof p.amenities === 'string' ? p.amenities : (Array.isArray(p.amenities)? p.amenities.join(', '): ''))}</div>
               </div>
             </div>
           </div>
         `;
 
-        // attach handlers
+        // store feature on the DOM node for convenience
+        try { card.__feature = feature; } catch (e) {}
+
+        // show button handler
         const showBtn = card.querySelector('.btn-show');
-        showBtn.addEventListener('click', ()=> onShow(f));
-        if(onUpdate){
-          const upd = card.querySelector('.btn-update');
-          if(upd) upd.addEventListener('click', ()=> onUpdate(f));
+        showBtn.addEventListener('click', ()=> onShow(feature));
+
+        // update button handler
+        const updBtn = card.querySelector('.btn-update');
+        if (updBtn) {
+          updBtn.addEventListener('click', ()=> onUpdate(feature));
+        }
+        
+        // delete handler
+        const delBtn = card.querySelector('.btn-delete');
+        if (delBtn) {
+          delBtn.addEventListener('click', ()=> options.onDelete(feature, card));
         }
 
         container.appendChild(card);
@@ -106,19 +107,31 @@
 
     function renderPagination(){
       if(!pagination) return;
-      pagination.innerHTML = '';
+      // Ensure we have a UL with Bootstrap pagination classes
+      let ul = null;
+      if(pagination.tagName === 'UL' || pagination.classList.contains('pagination')){
+        ul = pagination.tagName === 'UL' ? pagination : pagination.querySelector('ul') || pagination;
+        ul.innerHTML = '';
+      } else {
+        // create UL inside the pagination container (useful when pagination is a <nav>)
+        pagination.innerHTML = '';
+        ul = document.createElement('ul');
+        ul.className = 'pagination pagination-sm';
+        pagination.appendChild(ul);
+      }
+
       const prevLi = document.createElement('li'); prevLi.className='page-item'+(pagePrev? '':' disabled');
       prevLi.innerHTML = `<a class="page-link" href="#">Prev</a>`;
       prevLi.addEventListener('click', (e)=>{ e.preventDefault(); if(pagePrev) fetchPage(currentPage-1); });
-      pagination.appendChild(prevLi);
+      ul.appendChild(prevLi);
 
       const curLi = document.createElement('li'); curLi.className='page-item active'; curLi.innerHTML = `<span class="page-link">${currentPage}</span>`;
-      pagination.appendChild(curLi);
+      ul.appendChild(curLi);
 
       const nextLi = document.createElement('li'); nextLi.className='page-item'+(pageNext? '':' disabled');
       nextLi.innerHTML = `<a class="page-link" href="#">Next</a>`;
       nextLi.addEventListener('click', (e)=>{ e.preventDefault(); if(pageNext) fetchPage(currentPage+1); });
-      pagination.appendChild(nextLi);
+      ul.appendChild(nextLi);
     }
 
     return { fetchPage, refresh: () => fetchPage(1) };
