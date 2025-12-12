@@ -237,9 +237,6 @@
           const props = f.properties || {};
           const id = props.id || props.pk;
           if(id) return window.location.href = `/rentals/?highlight=${id}`;
-          if(f.geometry && f.geometry.coordinates){
-            const coords = f.geometry.coordinates; return window.location.href = `/rentals/?highlight=${coords[1]},${coords[0]}`;
-          }
         },
         onUpdate: function(f){ prefillFeature(f); },
         onDelete: function(f){ deleteFeature(f); }

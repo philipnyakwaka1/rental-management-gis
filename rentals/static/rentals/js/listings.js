@@ -2,9 +2,6 @@
 (function(){
   'use strict';
 
-  // Helper to escape HTML
-  function escapeHtml(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-
   function parseBuildingItem(item){
     try{
       if(typeof item === 'string'){
@@ -46,12 +43,12 @@
         const card = document.createElement('div');
         card.className = 'card mb-2';
         card.style.minWidth = '0';
-        const imgHtml = p.image ? `<img src="/media/${escapeHtml(p.image)}" class="card-img-top img-fluid" style="object-fit:cover; height:180px;" alt="${escapeHtml(p.title||p.address||'Listing')}">` : '';
-        const title = escapeHtml(p.title || p.address || 'Listing');
-        const address = escapeHtml(p.address || '—');
-        const phone = escapeHtml(p.owner_contact || (p.profile && p.profile.phone_number) || '—');
-        const price = escapeHtml(p.rental_price || 'N/A');
-        const district = escapeHtml(p.district || '—');
+        const imgHtml = p.image ? `<img src="/media/${window.RentalsSharedUtils.escapeHtml(p.image)}" class="card-img-top img-fluid" style="object-fit:cover; height:180px;" alt="${window.RentalsSharedUtils.escapeHtml(p.title||p.address||'Listing')}">` : '';
+        const title = window.RentalsSharedUtils.escapeHtml(p.title || p.address || 'Listing');
+        const address = window.RentalsSharedUtils.escapeHtml(p.address || '—');
+        const phone = window.RentalsSharedUtils.escapeHtml(p.owner_contact || (p.profile && p.profile.phone_number) || '—');
+        const price = window.RentalsSharedUtils.escapeHtml(p.rental_price || 'N/A');
+        const district = window.RentalsSharedUtils.escapeHtml(p.district || '—');
         const specs = `${p.num_bedrooms||0} + ${p.num_bathrooms||0}`;
 
         const descId = `desc-${Math.random().toString(36).slice(2,9)}`;
@@ -63,7 +60,7 @@
             <p class="mb-1 text-muted small">${address}</p>
             <p class="mb-1">Price (USD): ${price}</p>
             <p class="mb-1">Location: ${district}</p>
-            <p class="mb-1">Specs: ${escapeHtml(specs)}</p>
+            <p class="mb-1">Specs: ${window.RentalsSharedUtils.escapeHtml(specs)}</p>
             <p class="mb-1">Owner's Contact: ${phone}</p>
               <div class="d-flex gap-2 mt-2">
               <button class="btn btn-sm btn-outline-primary btn-show">Show</button>
@@ -74,9 +71,9 @@
             <div class="collapse mt-2" id="${descId}">
               <div class="card card-body p-2 small">
                 <div>Description</div>
-                <div>${escapeHtml(p.description || '')}</div>
+                <div>${window.RentalsSharedUtils.escapeHtml(p.description || '')}</div>
                 <hr/>
-                <div>Amenities: ${escapeHtml(typeof p.amenities === 'string' ? p.amenities : (Array.isArray(p.amenities)? p.amenities.join(', '): ''))}</div>
+                <div>Amenities: ${window.RentalsSharedUtils.escapeHtml(typeof p.amenities === 'string' ? p.amenities : (Array.isArray(p.amenities)? p.amenities.join(', '): ''))}</div>
               </div>
             </div>
           </div>
@@ -98,7 +95,7 @@
         // delete handler
         const delBtn = card.querySelector('.btn-delete');
         if (delBtn) {
-          delBtn.addEventListener('click', ()=> options.onDelete(feature, card));
+          delBtn.addEventListener('click', ()=> options.onDelete(feature));
         }
 
         container.appendChild(card);
