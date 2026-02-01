@@ -264,7 +264,7 @@
             const description = buildingForm.querySelector('#b-description')?.value.trim() || '';
             const locationRaw = buildingForm.querySelector('#b-coords')?.value.trim() || '';
             const imageInput = buildingForm.querySelector('#b-image');
-            const imageFile = imageInput?.files[0] || null;
+            const imageFiles = imageInput?.files || [];
 
             if (!address) return alert('Address is required');
             if (!locationRaw) return alert('Location is required');
@@ -272,17 +272,21 @@
 
             if (title.length > 150) return alert('Title must not exceed 150 characters.');
             if (description.length > 500) return alert('Description must not exceed 500 characters.');
+            
+            // Validate images
+            if (imageFiles.length > 5) return alert('You can upload a maximum of 5 images.');
+            
+            for (let i = 0; i < imageFiles.length; i++) {
+                const file = imageFiles[i];
+                if (!file.type.startsWith('image/')) return alert('All uploaded files must be images.');
+                if (file.size > 2*1024*1024) return alert('Each image size must not exceed 2 MB.');
+            }
 
             const amenities = amenitiesRaw.split(',').map(a=>a.trim()).filter(a=>a.length>0);
 
             const coords = locationRaw.split(',').map(c=>c.trim());
             if (coords.length !==2 || isNaN(coords[0]) || isNaN(coords[1])) 
                 return alert('Location must be in format "latitude, longitude"');
-
-            if (imageFile){
-                if (!imageFile.type.startsWith('image/')) return alert('Uploaded file must be an image.');
-                if (imageFile.size > 2*1024*1024) return alert('Image size must not exceed 2 MB.');
-            }
 
             const formData = new FormData();
             if (title) formData.append('title', title);
@@ -296,7 +300,11 @@
             if (owner_contact) formData.append('owner_contact', owner_contact);
             if (description) formData.append('description', description);
             formData.append('location', `${parseFloat(coords[0])},${parseFloat(coords[1])}`);
-            if (imageFile) formData.append('image', imageFile);
+            
+            // Append all selected images
+            for (let i = 0; i < imageFiles.length; i++) {
+                formData.append('images', imageFiles[i]);
+            }
 
             try {
                 const buildingId = document.getElementById('building-id')?.value || null;

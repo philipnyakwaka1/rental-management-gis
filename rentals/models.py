@@ -8,7 +8,7 @@ class Building(models.Model):
     county = models.CharField(max_length=100, null=True, default=None)
     district = models.CharField(max_length=100, null=True, default=None)
     address = models.CharField(max_length=255, null=True, default=None)
-    location = gis_models.PointField(spatial_index=True, srid=4326, null=False, blank=False)
+    location = gis_models.PointField(spatial_index=True, geography=True, srid=4326, null=False, blank=False)
     image = models.ImageField(upload_to='buildings/%Y/%m/%d/', null=True, blank=True)
     pets_allowed = models.BooleanField(default=False)
     available_from = models.DateField(null=True, blank=True)
@@ -53,3 +53,53 @@ class ProfileBuilding(models.Model):
     
     class Meta:
         db_table = "profile_building"
+
+
+class District(models.Model):
+    """"Model representing a district."""
+    name = models.CharField(max_length=100)
+    county = models.CharField(max_length=100)
+    geometry = gis_models.MultiPolygonField(spatial_index=True, srid=4326, geography=True, null=False)
+
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        db_table = "district"
+
+class BusStop(models.Model):
+    """Model representing a bus stop with geographic location."""
+    name = models.CharField(max_length=150)
+    geometry = gis_models.PointField(spatial_index=True, geography=True, srid=4326, null=False)
+
+    def __str__(self):
+        return f"{self.name} - [{self.geometry.x}, {self.geometry.y}]"
+    
+    class Meta:
+        db_table = "bus_stop"
+
+class Route(models.Model):
+    """Model representing a matatu route with geographic path."""
+    route_name = models.CharField(max_length=150)
+    headsign = models.CharField(max_length=150)
+    route_long_name = models.CharField(max_length=255)
+    geometry = gis_models.MultiLineStringField(spatial_index=True, geography=True, srid=4326, null=False)
+
+    def __str__(self):
+        return f"Route {self.route_long_name}"
+    
+    class Meta:
+        db_table = "matatu_route"
+
+
+class Shops(models.Model):
+    """Model representing shops with geographic location."""
+    name = models.CharField(max_length=150, null=True, default=None)
+    category = models.CharField(max_length=100, null=True, default=None)
+    geometry = gis_models.PointField(spatial_index=True, geography=True, srid=4326, null=False)
+
+    def __str__(self):
+        return f"{self.name} - Category: {self.category}"
+    
+    class Meta:
+        db_table = "shops"
