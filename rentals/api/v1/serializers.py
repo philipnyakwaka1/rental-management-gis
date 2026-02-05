@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from rentals.models import Profile, Building
+from rentals.models import Profile, Building, District
 from password_strength import PasswordPolicy
 from django.contrib.gis.geos import Point
 
@@ -89,16 +89,22 @@ class BuildingSerializer(serializers.ModelSerializer):
             coords = value.replace(' ', '').split(',')
             if len(coords) != 2:
                 raise serializers.ValidationError("Coordinate format cannot be parsed. The coordinate should be two floats values separated by a comma.")
-            float(coords[0])
-            float(coords[1])
-            return tuple(map(float, coords))
+            lat = float(coords[0])
+            lon = float(coords[1])
         except Exception as e:
             raise serializers.ValidationError("Coordinate format cannot be parsed. The coordinate should be two floats values separated by a comma.")
+        
+        # check if building lies within the district boundary can be added here
+        point = Point(lon, lat, srid=4326)
+        district = District.objects.filter(name=self.initial_data.get('district')).first()
+        if not district or not district.geometry.contains(point):
+            raise serializers.ValidationError(f"Building location must be within {district.name if district else 'a valid'} district boundary.")
+        return lat, lon
         
     def create(self, validated_data):
         location = validated_data.pop('location', None)
         if location is not None:
-            validated_data['location'] = Point(location[1], location[0])  # Note: Point takes (longitude, latitude)
+            validated_data['location'] = Point(location[1], location[0], srid=4326)  # Note: Point takes (longitude, latitude)
         return self.Meta.model.objects.create(**validated_data)
     
     def update(self, instance, validated_data):
@@ -107,6 +113,6 @@ class BuildingSerializer(serializers.ModelSerializer):
             if hasattr(instance, attr):
                 setattr(instance, attr, value)
         if location is not None:
-            instance.location = Point(location[1], location[0])  # Note: Point takes (longitude, latitude)
+            instance.location = Point(location[1], location[0], srid=4326)  # Note: Point takes (longitude, latitude)
         instance.save()
         return instance

@@ -1,9 +1,11 @@
 from django.shortcuts import render
+from .models import District
 
+districts = District.objects.all().order_by('name')
 
 def rental_listings(request):
 	"""Render the rental listings page."""
-	return render(request, 'rentals/map.html')
+	return render(request, 'rentals/map.html', {'districts': districts})
 
 
 def register_user(request):
@@ -30,4 +32,4 @@ def logout_user(request):
 
 def user_account(request):
 	"""Render the user account page."""
-	return render(request, 'rentals/account.html', {'user': request.user})
+	return render(request, 'rentals/account.html', {'user': request.user, 'districts': districts})

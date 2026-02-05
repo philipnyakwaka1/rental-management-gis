@@ -26,12 +26,8 @@
         </button>
 
         <div class="collapse navbar-collapse" id="demoNav">
-            <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:rentals_listings' %}">Home / Map</a></li>
-                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:register_user' %}">Register</a></li>
-                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:login_user' %}">Sign in</a></li>
-                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:logout_user' %}">Sign out</a></li>
-                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:user_account' %}">My listings</a></li>
+            <ul class="navbar-nav ms-auto mb-2 mb-lg-0" id="auth-nav">
+                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:rentals_listings' %}">Listings</a></li>
             </ul>
         </div>
     </div>
@@ -56,6 +52,24 @@
 </main>
 <script src="{% static 'rentals/js/logout.js' %}"></script>
 <script>
+    // Render auth nav based on JWT token
+    (function(){
+        const token = window.sessionStorage.getItem('access_token');
+        const authNav = document.getElementById('auth-nav');
+        if (token) {
+            authNav.innerHTML += `
+                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:user_account' %}">My listings</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:logout_user' %}">Sign out</a></li>
+            `;
+        } else {
+            authNav.innerHTML += `
+                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:user_account' %}">Create Listing</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:register_user' %}">Register</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'rentals:login_user' %}">Sign in</a></li>
+            `;
+        }
+    })();
+
     // Show client-side logout message (set by logout.js)
     (function(){
         try {

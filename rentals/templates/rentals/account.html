@@ -116,8 +116,22 @@
             <input id="b-address" name="address" class="form-control" required />
           </div>
           <div class="mb-2">
-            <label class="form-label">District</label>
-            <input id="b-district" name="district" class="form-control" />
+            <label class="form-label required">County</label>
+            <input id="b-county" name="county" class="form-control" value="Nairobi" readonly/>
+            <small class="text-muted">
+              The rentals system supports only buildings within Nairobi county.
+            </small>
+          </div>
+          <div class="mb-2">
+            <label class="form-label required">District</label>
+            <div class="input-group">
+              <input id="b-district" name="district" class="form-control" list="districts-list" placeholder="Select or type district..." />
+              <datalist id="districts-list">
+                {% for district in districts %}
+                  <option value="{{ district.name }}"></option>
+                {% endfor %}
+              </datalist>
+            </div>
           </div>
           <div class="row g-2 mb-2">
             <div class="col">
