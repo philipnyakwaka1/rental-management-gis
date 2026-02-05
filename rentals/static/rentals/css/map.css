@@ -29,3 +29,144 @@ header {
     opacity: 0.7;
     fill-opacity: 0.2;
 }
+
+/** Styles for search and listings titles **/
+.search-title {
+    font-weight: 500;
+    font-style: monospace;
+    color: #6b7280; /* neutral gray (Tailwind gray-500 range) */
+    letter-spacing: 0.04em;
+}
+
+
+.listings-title {
+    font-weight: bold;
+    margin-top: 40px;
+    margin-bottom: 15px;
+}
+
+/* ==========================================================
+   Demo App – Navbar Styles
+   ========================================================== */
+
+/* Navbar shell */
+.demo-navbar {
+    background-color: #f8f9fa; /* Bootstrap bg-light */
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* Brand */
+.demo-navbar .navbar-brand {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #111827;
+}
+
+.demo-navbar .navbar-brand:hover,
+.demo-navbar .navbar-brand:focus {
+    color: #111827;
+}
+
+/* Base nav links */
+.demo-navbar .nav-link {
+    position: relative;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.65);
+    padding: 0.5rem 0.75rem;
+    transition: color 0.2s ease;
+    white-space: nowrap;
+}
+
+.demo-navbar .nav-link:hover,
+.demo-navbar .nav-link:focus {
+    color: #111827;
+}
+
+/* Subtle underline hover + active */
+.demo-navbar .nav-link::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 0;
+    height: 2px;
+    background-color: #111827;
+    transform: translateX(-50%);
+    transition: width 0.25s ease;
+}
+
+.demo-navbar .nav-link:hover::after,
+.demo-navbar .nav-link.active::after {
+    width: 60%;
+}
+
+.demo-navbar .nav-link.active {
+    color: #111827;
+}
+
+/* ==========================================================
+   CTA – Create Listing
+   Targeted via href to avoid JS changes
+   ========================================================== */
+
+.demo-navbar .nav-link[href*="create"] {
+    font-weight: 600;
+    color: #1f2937;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+    margin-left: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+/* CTA hover */
+.demo-navbar .nav-link[href*="create"]:hover,
+.demo-navbar .nav-link[href*="create"]:focus {
+    background-color: #111827;
+    color: #ffffff;
+    border-color: #111827;
+}
+
+/* Disable underline for CTA */
+.demo-navbar .nav-link[href*="create"]::after {
+    display: none;
+}
+
+/* ==========================================================
+   Auth link hierarchy
+   ========================================================== */
+
+/* Register slightly stronger */
+.demo-navbar .nav-link[href*="register"] {
+    font-weight: 600;
+}
+
+/* Sign out slightly muted */
+.demo-navbar .nav-link[href*="logout"] {
+    color: rgba(0, 0, 0, 0.55);
+}
+
+.demo-navbar .nav-link[href*="logout"]:hover {
+    color: #111827;
+}
+
+/* ==========================================================
+   Mobile refinements
+   ========================================================== */
+
+@media (max-width: 991px) {
+    .demo-navbar .navbar-nav {
+        padding-top: 0.5rem;
+    }
+
+    .demo-navbar .nav-link {
+        padding: 0.6rem 0;
+    }
+
+    .demo-navbar .nav-link[href*="create"] {
+        margin: 0.5rem 0 0;
+        width: fit-content;
+    }
+}
+
+

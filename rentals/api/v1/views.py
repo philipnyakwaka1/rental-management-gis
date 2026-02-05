@@ -9,7 +9,7 @@ from rest_framework.exceptions import PermissionDenied
 
 # Model imports
 from django.contrib.auth import get_user_model
-from rentals.models import Profile, Building
+from rentals.models import Profile, Building, BusStop, Route, Shops
 
 # Serializers imports
 from rentals.api.v1.serializers import UserSerializer, ProfileSerializer, BuildingSerializer
@@ -21,6 +21,11 @@ from rentals.api.v1.pagination import CustomPagination
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate
+
+# Database & GIS imports
+from django.db.models import Exists, OuterRef
+from django.contrib.gis.db.models.functions import Distance
+import json
 
 
 User = get_user_model()
@@ -309,16 +314,32 @@ def check_modify_building_permission(request, building):
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 def building_list_create(request):
     if request.method == 'GET':
-        buildings = Building.objects.all()
         geojson = request.query_params.get('geojson', 'false').lower()
+        
         if geojson == 'true':
+            # Always return all buildings for map layer (unfiltered)
+            buildings = Building.objects.all()
             buildings_geojson = serializers.serialize('geojson', buildings)
             return Response(buildings_geojson, status=status.HTTP_200_OK)
         else:
+            # Apply filters at DB level for paginated response
+            buildings = _apply_building_filters(request.query_params)
+            
             paginator = CustomPagination()
             paginated_buildings = paginator.paginate_queryset(buildings, request)
-            buildings_serialized = list(map(lambda x: serializers.serialize('geojson', [x]), paginated_buildings))
-            return paginator.get_paginated_response(buildings_serialized)
+            
+            buildings_data = []
+            for building in paginated_buildings:
+                building_geojson = json.loads(serializers.serialize('geojson', [building]))
+                
+                # Add all nearby POIs data
+                nearby_pois = _get_all_nearby_pois(building, request.query_params)
+                if nearby_pois:
+                    building_geojson['features'][0]['properties']['nearby_pois'] = nearby_pois
+                
+                buildings_data.append(building_geojson)
+            
+            return paginator.get_paginated_response(buildings_data)
 
     elif request.method == 'PUT':
         user = request.user
@@ -416,3 +437,178 @@ def building_profiles_list(request, building_pk):
     paginated_profiles = paginator.paginate_queryset(profiles, request)
     profiles_serialized = list(map(lambda x: {**UserSerializer(x.user).data, 'profile': ProfileSerializer(x).data}, paginated_profiles))
     return paginator.get_paginated_response(profiles_serialized)
+
+# Helper functions for building filtering
+
+def _apply_building_filters(query_params):
+    """Apply all filters at database level."""
+    queryset = Building.objects.all()
+    
+    # District filter
+    district = query_params.get('district')
+    if district and district.strip():
+        queryset = queryset.filter(district__iexact=district.strip())
+    
+    # Price range filters
+    price_min = query_params.get('price_min')
+    if price_min and price_min.strip():
+        try:
+            queryset = queryset.filter(rental_price__gte=float(price_min))
+        except (ValueError, TypeError):
+            pass
+    
+    price_max = query_params.get('price_max')
+    if price_max and price_max.strip():
+        try:
+            queryset = queryset.filter(rental_price__lte=float(price_max))
+        except (ValueError, TypeError):
+            pass
+    
+    # Proximity filters (using Exists subquery at DB level)
+    # Support multiple POI filters by getting lists from query params
+    poi_types = query_params.getlist('poi_type')
+    poi_radii = query_params.getlist('poi_radius')
+    
+    # Process each poi filter pair
+    if poi_types and poi_radii and len(poi_types) == len(poi_radii):
+        for idx, (poi_type, poi_radius) in enumerate(zip(poi_types, poi_radii)):
+            if not poi_type or not poi_type.strip() or not poi_radius or not poi_radius.strip():
+                continue
+                
+            try:
+                radius_m = float(poi_radius)
+                
+                # Use unique annotation names to avoid overwriting and ensure proper AND logic
+                if poi_type == 'shops':
+                    annotation_name = f'has_nearby_shops_{idx}'
+                    queryset = queryset.annotate(**{
+                        annotation_name: Exists(
+                            Shops.objects.filter(
+                                geometry__dwithin=(OuterRef('location'), radius_m)
+                            )
+                        )
+                    }).filter(**{annotation_name: True})
+                
+                elif poi_type == 'bus_stop':
+                    annotation_name = f'has_nearby_stops_{idx}'
+                    queryset = queryset.annotate(**{
+                        annotation_name: Exists(
+                            BusStop.objects.filter(
+                                geometry__dwithin=(OuterRef('location'), radius_m)
+                            )
+                        )
+                    }).filter(**{annotation_name: True})
+                
+                elif poi_type == 'route':
+                    annotation_name = f'has_nearby_routes_{idx}'
+                    queryset = queryset.annotate(**{
+                        annotation_name: Exists(
+                            Route.objects.filter(
+                                geometry__dwithin=(OuterRef('location'), radius_m)
+                            )
+                        )
+                    }).filter(**{annotation_name: True})
+            
+            except (ValueError, TypeError):
+                continue
+    
+    return queryset
+
+
+def _get_nearby_pois(building, poi_type, query_params):
+    """Get nearby POIs with distances."""
+    try:
+        poi_radius = query_params.get('poi_radius')
+        if not poi_radius or not poi_radius.strip():
+            return None
+        
+        radius_m = float(poi_radius)
+        pois = []
+        
+        if poi_type == 'shops':
+            shops = Shops.objects.annotate(
+                distance=Distance('geometry', building.location)
+            ).filter(
+                distance__lte=radius_m
+            ).values('name', 'category', 'distance').order_by('distance')
+            
+            for shop in shops:
+                distance_m = shop['distance'].m if shop['distance'] else 0
+                pois.append({
+                    'name': shop['name'] or 'N/A',
+                    'category': shop['category'] or 'N/A',
+                    'distance_m': round(distance_m, 2)
+                })
+        
+        elif poi_type == 'bus_stop':
+            stops = BusStop.objects.annotate(
+                distance=Distance('geometry', building.location)
+            ).filter(
+                distance__lte=radius_m
+            ).values('name', 'distance').order_by('distance')
+            
+            for stop in stops:
+                distance_m = stop['distance'].m if stop['distance'] else 0
+                pois.append({
+                    'name': stop['name'] or 'N/A',
+                    'distance_m': round(distance_m, 2)
+                })
+        
+        elif poi_type == 'route':
+            routes = Route.objects.annotate(
+                distance=Distance('geometry', building.location)
+            ).filter(
+                distance__lte=radius_m
+            ).values('route_name', 'headsign', 'route_long_name', 'distance').order_by('distance')
+            
+            seen_routes = set()
+            for route in routes:
+                route_name = route['route_long_name']
+                # Skip duplicate route names, keep only first occurrence
+                if route_name in seen_routes:
+                    continue
+                seen_routes.add(route_name)
+                
+                distance_m = route['distance'].m if route['distance'] else 0
+                pois.append({
+                    'name': route['route_long_name'] or 'N/A',
+                    'distance_m': round(distance_m, 2)
+                })
+        
+        return pois if pois else None
+    
+    except (ValueError, TypeError):
+        return None
+
+
+def _get_all_nearby_pois(building, query_params):
+    """Get nearby POIs with distances. Fetches only requested types or all types if none specified."""
+    poi_types = query_params.getlist('poi_type')
+    poi_radii = query_params.getlist('poi_radius')
+    
+    # If specific poi_types requested, only fetch those types
+    if poi_types and poi_radii and len(poi_types) == len(poi_radii):
+        nearby_pois = {}
+        
+        # Create a temporary query params object for each filter
+        for poi_type, poi_radius in zip(poi_types, poi_radii):
+            if not poi_type or not poi_type.strip():
+                continue
+                
+            # Create mock query params with single filter
+            class SingleFilterParams:
+                def get(self, key, default=None):
+                    if key == 'poi_radius':
+                        return poi_radius
+                    return default
+            
+            poi_list = _get_nearby_pois(building, poi_type, SingleFilterParams())
+            if poi_list:
+                # Map singular to plural for response keys
+                key = 'routes' if poi_type == 'route' else 'bus_stops' if poi_type == 'bus_stop' else 'shops'
+                nearby_pois[key] = poi_list
+        
+        return nearby_pois if nearby_pois else None
+    
+    # Otherwise, no specific filters - don't fetch anything to save resources
+    return None

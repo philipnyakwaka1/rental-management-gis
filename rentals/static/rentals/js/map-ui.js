@@ -93,6 +93,30 @@
     });
     
     // add event listeners for filtering listings
+    const filtersForm = document.getElementById('filters-form');
+    const resetBtn = filtersForm ? filtersForm.querySelector('button[type="reset"]') : null;
+    let activeFilters = null;
+
+    function buildFilterParams(){
+      if(!filtersForm) return null;
+      const params = new URLSearchParams();
+      const formData = new FormData(filtersForm);
+      for(const [key, value] of formData.entries()){
+        if(value !== null && value !== undefined && String(value).trim() !== ''){
+          params.append(key, String(value).trim());
+        }
+      }
+      return params.toString() ? params : null;
+    }
+
+    function applyFiltersToUrl(url){
+      if(!activeFilters) return url;
+      const u = new URL(url, window.location.origin);
+      activeFilters.forEach((value, key) => {
+        u.searchParams.append(key, value);
+      });
+      return u.toString();
+    }
 
     // Initialize shared listings renderer
     const listings = window.RentalsListings.createListings({
@@ -100,7 +124,35 @@
       container: '#listings',
       pagination: '#pagination',
       onShow: function(f){ showOnMap(f); },
+      fetcher: async function(url, opts){
+        const finalUrl = applyFiltersToUrl(url);
+        const resp = await fetch(finalUrl, opts);
+        if(resp && resp.status === 404){
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ results: [], next: null, previous: null })
+          };
+        }
+        return resp;
+      }
     });
+
+    if(filtersForm){
+      filtersForm.addEventListener('submit', (e) => {
+        if(e.defaultPrevented) return;
+        e.preventDefault();
+        activeFilters = buildFilterParams();
+        listings.fetchPage(1);
+      });
+    }
+
+    if(resetBtn){
+      resetBtn.addEventListener('click', () => {
+        activeFilters = null;
+        listings.fetchPage(1);
+      });
+    }
 
     listings.fetchPage(1);
   }

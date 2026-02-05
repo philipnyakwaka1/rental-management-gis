@@ -182,6 +182,7 @@
       const set = (sel, v) => { const el = document.getElementById(sel); if(el) el.value = v || ''; };
       set('b-title', p.title);
       set('b-address', p.address);
+      set('b-county', p.county);
       set('b-district', p.district);
       set('b-price', p.rental_price);
       set('b-bedrooms', p.num_bedrooms);
@@ -248,13 +249,18 @@
     } catch (e) { console.warn('Listings init failed', e); }
 
     if (buildingForm){
+        // Helper function to capitalize first letter of each word
+        function capitalizeWords(str) {
+            return str.replace(/\b\w/g, char => char.toUpperCase());
+        }
+
         buildingForm.addEventListener('submit', async function(e){
             e.preventDefault();
 
             // Gather and validate fields
             const title = buildingForm.querySelector('#b-title')?.value.trim() || '';
             const address = buildingForm.querySelector('#b-address')?.value.trim() || '';
-            const district = buildingForm.querySelector('#b-district')?.value.trim() || '';
+            let district = buildingForm.querySelector('#b-district')?.value.trim() || '';
             const rental_price = buildingForm.querySelector('#b-price')?.value || '';
             const num_bedrooms = buildingForm.querySelector('#b-bedrooms')?.value || '';
             const num_bathrooms = buildingForm.querySelector('#b-bathrooms')?.value || '';
@@ -287,6 +293,18 @@
             const coords = locationRaw.split(',').map(c=>c.trim());
             if (coords.length !==2 || isNaN(coords[0]) || isNaN(coords[1])) 
                 return alert('Location must be in format "latitude, longitude"');
+
+            // Capitalize district and validate
+            if (district) {
+                district = capitalizeWords(district);
+                // Update the input field with capitalized value
+                buildingForm.querySelector('#b-district').value = district;
+                const datalist = document.getElementById('districts-list');
+                const validDistricts = Array.from(datalist.querySelectorAll('option')).map(opt => opt.value);
+                if (!validDistricts.includes(district)) {
+                    return alert('Invalid district. Please select a valid district from the drop-down list.');
+                }
+            }
 
             const formData = new FormData();
             if (title) formData.append('title', title);

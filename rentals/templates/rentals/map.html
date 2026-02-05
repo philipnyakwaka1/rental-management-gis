@@ -4,43 +4,47 @@
 {% block title %}Rentals Map & Listings{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3" style="background-color: blue;">
-  <div class="row g-3" style="background-color: yellow;">
-    <div class="col-lg-4" style="background-color: red;">
-      <div class="card" style="background-color: lightgreen;">
-        <div class="card-body" style="background-color: lightsalmon;">
-          <h4 class="card-title">Filters</h4>
-          <form id="filters-form" class="mb-3" style="background-color: lightgoldenrodyellow;">
+<div class="container-fluid py-3"> <!--style="background-color: blue;"-->
+  <div class="row g-3"><!--style="background-color: yellow;"-->
+    <div class="col-lg-4"> <!--style="background-color: red;"-->
+      <div class="card"> <!--style="background-color: lightblue;"-->
+        <div class="card-body"> <!--style="background-color: lightgreen;"-->
+          <p class="card-title search-title">Search by location and more</p>
+          <form id="filters-form" class="mb-3"> <!--style="background-color: lightyellow;"-->
             <div class="mb-2">
-              <label class="form-label">Price range</label>
-              <div class="input-group">
-                <input id="price-min" type="number" class="form-control" placeholder="Min" min="0">
-                <input id="price-max" type="number" class="form-control" placeholder="Max" min="0">
-              </div>
-            </div>
-
-            <div class="mb-2">
-              <label class="form-label">Proximity filters</label>
-              <select id="poi-filter" class="form-select">
-                <option value="">None</option>
-                <option value="bus_stop">Bus stop</option>
-                <option value="police">Police post</option>
-                <option value="hospital">Hospital</option>
-                <option value="supermarket">Shopping</option>
+              <label for="district-select" class="form-label">District</label>
+              <select id="district-select" name="district" class="form-select">
+                <option value="">All districts</option>
+                {% for district in districts %}
+                  <option value="{{ district.name }}">{{ district.name }}</option>
+                {% endfor %}
               </select>
-              <div class="mt-2 d-flex gap-2">
-                <input id="poi-radius" type="number" class="form-control" placeholder="Radius (m)" value="800">
-                <button id="apply-poi-filter" type="button" class="btn btn-primary">Apply</button>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Price range (USD)</label>
+              <div class="input-group">
+                <input id="price-min" name="price_min" type="number" class="form-control" placeholder="Min" min="0">
+                <input id="price-max" name="price_max" type="number" class="form-control" placeholder="Max" min="0">
               </div>
             </div>
 
             <div class="mb-2">
-              <button id="reset-filters" type="button" class="btn btn-outline-secondary">Reset</button>
-              <button id="open-create" type="button" class="btn btn-success float-end" data-bs-toggle="modal" data-bs-target="#createModal">Create Listing</button>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label mb-0">Proximity filters</label>
+                <button id="add-poi-filter" type="button" class="btn btn-sm btn-outline-primary">+ Add Filter</button>
+              </div>
+              <div id="poi-filters-container">
+                <!-- Dynamic filters will be added here -->
+              </div>
+            </div>
+
+            <div class="mb-2">
+              <button id="reset-filters" type="reset" class="btn btn-outline-secondary">Reset</button>
+              <button id="apply-filters" type="submit" class="btn btn-primary float-end">Apply</button>
             </div>
           </form>
 
-          <h5>Listings</h5>
+          <h5 class="listings-title">Listings</h5>
           <div id="listings" class="list-group list-group-flush" style="max-height:55vh; overflow:auto;"></div>
           <nav aria-label="pagination" class="mt-2">
             <ul id="pagination" class="pagination pagination-sm"></ul>
@@ -49,8 +53,8 @@
       </div>
     </div>
 
-    <div class="col-lg-8" style="background-color: green;">
-      <div class="card h-100" style="background-color: lightpink;">
+    <div class="col-lg-8"> <!--style="background-color: purple;"-->
+      <div class="card h-100"> <!--style="background-color: lightgray;"-->
         <div class="card-body p-0 h-100">
           <div id="map" class="h-100 w-100"></div>
         </div>
@@ -65,4 +69,5 @@
 <script src="{% static 'rentals/js/listings.js' %}"></script>
 <script src="{% static 'rentals/js/map-ui.js' %}"></script>
 <script src="{% static 'rentals/js/shared-utils.js' %}"></script>
+<script src="{% static 'rentals/js/filters-form.js' %}"></script>
 {% endblock %}
