@@ -4,7 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Rental Listings{% endblock %}</title>
+    <meta name="description" content="Map-based rental search and listing platform with proximity filtering and interactive GIS maps.">
+    <title>{% block title %}Rentals GIS{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'rentals/icons/building-icon.svg' %}"/>
+    <link rel="icon" type="image/x-icon" href="{% static 'rentals/icons/favicon.ico' %}" sizes="32x32"/>
+    <link rel="apple-touch-icon" href="{% static 'rentals/icons/favicon.ico' %}"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
