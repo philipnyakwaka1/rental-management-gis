@@ -77,14 +77,18 @@
     // Show client-side logout message (set by logout.js)
     (function(){
         try {
-            const msg = window.localStorage.getItem('logout_message');
+            const msg = window.sessionStorage.getItem('logout_message');
             if (msg) {
                 const main = document.querySelector('main');
                 const container = document.createElement('div');
                 container.className = 'container mt-3';
-                container.innerHTML = `<div class="alert alert-success" role="alert">${msg}</div>`;
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-success';
+                alert.setAttribute('role', 'alert');
+                alert.textContent = msg;  // Use textContent instead of innerHTML to prevent XSS
+                container.appendChild(alert);
                 if (main) main.insertBefore(container, main.firstChild);
-                localStorage.removeItem('logout_message');
+                sessionStorage.removeItem('logout_message');
             }
         } catch (e) {}
     })();

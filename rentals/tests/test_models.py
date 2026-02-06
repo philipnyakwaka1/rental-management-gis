@@ -37,7 +37,7 @@ class ModelsTestCase(TestCase):
 			rental_price='1200.00',
 			num_bedrooms=2,
 			num_bathrooms=1,
-			square_footage=750,
+			square_meters=750,
 			owner_contact='owner@example.com'
 		)
 

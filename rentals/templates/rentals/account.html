@@ -125,7 +125,7 @@
           <div class="mb-2">
             <label class="form-label required">District</label>
             <div class="input-group">
-              <input id="b-district" name="district" class="form-control" list="districts-list" placeholder="Select or type district..." />
+              <input id="b-district" name="district" class="form-control" list="districts-list" placeholder="Select or type district..." required />
               <datalist id="districts-list">
                 {% for district in districts %}
                   <option value="{{ district.name }}"></option>

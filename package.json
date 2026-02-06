@@ -1,0 +1,29 @@
+{
+  "name": "rentals-gis-frontend-tests",
+  "version": "1.0.0",
+  "description": "Frontend tests for Rentals GIS application",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "rentals/static/rentals/js/**/*.js",
+      "!rentals/static/rentals/js/tests/**",
+      "!rentals/static/rentals/js/**/*.test.js"
+    ]
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^5.16.5",
+    "jest": "^27.5.1",
+    "jest-environment-jsdom": "^27.5.1"
+  }
+}

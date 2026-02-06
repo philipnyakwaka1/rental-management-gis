@@ -89,28 +89,22 @@
     })
 
     // Load administrative boundary
-    let boundaryLayer = null;
-    fetch('/static/rentals/data/nairobi_outline.geojson')
-      .then(resp => resp.json())
-      .then(data => {
-        boundaryLayer = L.geoJSON(data, {
-          style: { color: '#1f77b4', weight: 2, opacity: 0.7, fillOpacity: 0.05 }
-        });
-      })
-      .catch(e => console.warn('Boundary layer load failed', e));
-    
     const overlayLayers = {};
     const layerControl = L.control.layers(baseLayers, overlayLayers);
     layerControl.addTo(map);
     
-    // Add boundary to overlay layers and show by default
-    setTimeout(() => {
-      if (boundaryLayer) {
+    // Load boundary layer asynchronously and add to map when ready
+    fetch('/static/rentals/data/nairobi_outline.geojson')
+      .then(resp => resp.json())
+      .then(data => {
+        const boundaryLayer = L.geoJSON(data, {
+          style: { color: '#1f77b4', weight: 2, opacity: 0.7, fillOpacity: 0.05 }
+        });
         boundaryLayer.addTo(map);
         overlayLayers['Nairobi County Boundary'] = boundaryLayer;
         layerControl.addOverlay(boundaryLayer, 'Nairobi County Boundary');
-      }
-    }, 500);
+      })
+      .catch(e => console.warn('Boundary layer load failed', e));
     
     // highlight layer sits above base markers
     highlightLayer = L.layerGroup().addTo(map);
@@ -118,13 +112,22 @@
     // Watch for container size changes and invalidate map size
     // This ensures the map redraws when listings expand/contract the viewport
     const mapContainer = document.getElementById('map');
+    let resizeObserver = null;
     if(mapContainer && window.ResizeObserver){
-      const resizeObserver = new ResizeObserver(() => {
+      resizeObserver = new ResizeObserver(() => {
         if(map) {
           map.invalidateSize();
         }
       });
       resizeObserver.observe(mapContainer);
+      
+      // Clean up observer when page unloads
+      window.addEventListener('unload', () => {
+        if (resizeObserver) {
+          resizeObserver.disconnect();
+          resizeObserver = null;
+        }
+      });
     }
 
     loadAllBuildings().then(() => {
@@ -232,7 +235,13 @@
       }).addTo(map);
       // fit bounds only if no other data is present (don't override user view)
       try{ if(allBuildingsLayer && allBuildingsLayer.getBounds && !map._initialBoundsSet){ map.fitBounds(allBuildingsLayer.getBounds(), {maxZoom: 14}); map._initialBoundsSet = true; } }catch(e){}
-    }catch(e){ console.error('loadAllBuildings error', e); }
+    }catch(e){ 
+      console.error('loadAllBuildings error', e); 
+      // Initialize with empty GeoJSON on error to prevent null reference issues
+      if (!allBuildingsGeoJSON) {
+        allBuildingsGeoJSON = {type: 'FeatureCollection', features: []};
+      }
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);

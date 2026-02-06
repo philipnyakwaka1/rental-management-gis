@@ -142,7 +142,7 @@
             formData.forEach((value, key) => { data[key] = value; });
             try {
                 const response = await fetch(regForm.action, {
-                    method: 'PUT',
+                    method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': regForm.querySelector('input[name="csrfmiddlewaretoken"]').value

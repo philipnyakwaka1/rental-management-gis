@@ -41,7 +41,8 @@ db.sqlite3
 # data files
 data/
 *.csv
-*.json
+data/**/*.json
+!package.json
 *.geojson
 *.kml
 *.shp
@@ -60,3 +61,8 @@ data/
 
 docs/
 /media/
+
+# Node.js
+node_modules/
+coverage/
+package-lock.json

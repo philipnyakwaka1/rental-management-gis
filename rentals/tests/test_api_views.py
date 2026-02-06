@@ -122,7 +122,7 @@ class APITestCase(TestCase):
         token_resp = self._login_and_get_token('user1', 'StrongP@ss1')
         access = token_resp.data.get('access')
         client = APIClient(); client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
-        create_resp = client.put(self.building_list_url, data={'address': 'New', 'location': '2.0,2.0', 'owner_contact': 'oc'}, format='json')
+        create_resp = client.post(self.building_list_url, data={'address': 'New', 'location': '2.0,2.0', 'owner_contact': 'oc'}, format='json')
         self.assertEqual(create_resp.status_code, 201)
 
         # modify building by non-owner should be forbidden
