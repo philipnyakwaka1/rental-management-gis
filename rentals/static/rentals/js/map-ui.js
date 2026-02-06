@@ -1,8 +1,8 @@
 // map-ui.js: map + listing UI for rentals
 (function(){
   const API_BASE = '/rentals/api/v1';
-  const CENTER_COORDINATES = [0.5, 0.5]; //-1.2921, 36.8219
-  const MAP_ZOOM_LEVEL = 10;
+  const CENTER_COORDINATES = [-1.281058090000000, 36.712155400000000];
+  const MAP_ZOOM_LEVEL = 15;
 
 
   let map = null;
@@ -88,7 +88,29 @@
       layers: [baseLayers['OpenStreetMap']]
     })
 
-    L.control.layers(baseLayers).addTo(map)
+    // Load administrative boundary
+    let boundaryLayer = null;
+    fetch('/static/rentals/data/nairobi_outline.geojson')
+      .then(resp => resp.json())
+      .then(data => {
+        boundaryLayer = L.geoJSON(data, {
+          style: { color: '#1f77b4', weight: 2, opacity: 0.7, fillOpacity: 0.05 }
+        });
+      })
+      .catch(e => console.warn('Boundary layer load failed', e));
+    
+    const overlayLayers = {};
+    const layerControl = L.control.layers(baseLayers, overlayLayers);
+    layerControl.addTo(map);
+    
+    // Add boundary to overlay layers and show by default
+    setTimeout(() => {
+      if (boundaryLayer) {
+        boundaryLayer.addTo(map);
+        overlayLayers['Nairobi County Boundary'] = boundaryLayer;
+        layerControl.addOverlay(boundaryLayer, 'Nairobi County Boundary');
+      }
+    }, 500);
     
     // highlight layer sits above base markers
     highlightLayer = L.layerGroup().addTo(map);
