@@ -279,13 +279,13 @@
             if (title.length > 150) return alert('Title must not exceed 150 characters.');
             if (description.length > 500) return alert('Description must not exceed 500 characters.');
             
-            // Validate images
-            if (imageFiles.length > 5) return alert('You can upload a maximum of 5 images.');
+            // Validate single image
+            if (imageFiles.length > 1) return alert('You can upload only one image.');
             
-            for (let i = 0; i < imageFiles.length; i++) {
-                const file = imageFiles[i];
-                if (!file.type.startsWith('image/')) return alert('All uploaded files must be images.');
-                if (file.size > 2*1024*1024) return alert('Each image size must not exceed 2 MB.');
+            if (imageFiles.length === 1) {
+                const file = imageFiles[0];
+                if (!file.type.startsWith('image/')) return alert('Uploaded file must be an image.');
+                if (file.size > 2*1024*1024) return alert('Image size must not exceed 2 MB.');
             }
 
             const amenities = amenitiesRaw.split(',').map(a=>a.trim()).filter(a=>a.length>0);
@@ -319,9 +319,9 @@
             if (description) formData.append('description', description);
             formData.append('location', `${parseFloat(coords[0])},${parseFloat(coords[1])}`);
             
-            // Append all selected images
-            for (let i = 0; i < imageFiles.length; i++) {
-                formData.append('images', imageFiles[i]);
+            // Append single image if provided
+            if (imageFiles.length === 1) {
+                formData.append('image', imageFiles[0]);
             }
 
             try {

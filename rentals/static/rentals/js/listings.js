@@ -84,7 +84,8 @@
             if (p.nearby_pois.shops && p.nearby_pois.shops.length > 0) {
               detailsContent += '<div class="mb-2"><strong>Shops nearby:</strong><ul class="list-unstyled ms-3 small">';
               p.nearby_pois.shops.forEach(shop => {
-                detailsContent += `<li>${window.RentalsSharedUtils.escapeHtml(shop.name)} (${window.RentalsSharedUtils.escapeHtml(shop.category)}): ${shop.distance_m}m away</li>`;
+                const shopName = shop.name && shop.name !== 'N/A' ? window.RentalsSharedUtils.escapeHtml(shop.name) + ' ' : '';
+                detailsContent += `<li>${shopName}(${window.RentalsSharedUtils.escapeHtml(shop.category)}): ${shop.distance_m}m away</li>`;
               });
               detailsContent += '</ul></div>';
             }

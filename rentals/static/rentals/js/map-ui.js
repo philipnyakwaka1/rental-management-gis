@@ -40,7 +40,20 @@
     function showOnMap(f){
         const coords = f.geometry && f.geometry.coordinates;
         if(!coords) return;
-        map.flyTo([coords[1], coords[0]], 16);
+        
+        // Scroll the map card into view at the top of the viewport before zooming
+        const mapContainer = document.getElementById('map');
+        if(mapContainer){
+            const mapCard = mapContainer.closest('.card');
+            if(mapCard){
+                mapCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+        
+        // Small delay to allow scroll to complete before zooming
+        setTimeout(() => {
+            map.flyTo([coords[1], coords[0]], 16);
+        }, 300);
 
         const props = f.properties || {};
         const key = props.id || props.pk || `${coords[0].toFixed(6)}_${coords[1].toFixed(6)}`;
@@ -79,6 +92,18 @@
     
     // highlight layer sits above base markers
     highlightLayer = L.layerGroup().addTo(map);
+
+    // Watch for container size changes and invalidate map size
+    // This ensures the map redraws when listings expand/contract the viewport
+    const mapContainer = document.getElementById('map');
+    if(mapContainer && window.ResizeObserver){
+      const resizeObserver = new ResizeObserver(() => {
+        if(map) {
+          map.invalidateSize();
+        }
+      });
+      resizeObserver.observe(mapContainer);
+    }
 
     loadAllBuildings().then(() => {
       const params = new URLSearchParams(window.location.search);
@@ -174,7 +199,7 @@
         },
         onEachFeature: function(feature, layer){
           const props = feature.properties || {};
-          const popup = `<div><strong>${window.RentalsSharedUtils.escapeHtml(props.address||'Address')}</strong><br/>Price: ${window.RentalsSharedUtils.escapeHtml(props.rental_price||'N/A')}</div>`;
+          const popup = `<div>Address: <strong>${window.RentalsSharedUtils.escapeHtml(props.address||'Address')}</strong><br/>District: ${window.RentalsSharedUtils.escapeHtml(props.district||'N/A')}<br/>Price (USD): ${window.RentalsSharedUtils.escapeHtml(props.rental_price||'N/A')}<br/>Owner's contact: ${window.RentalsSharedUtils.escapeHtml(props.owner_contact||'N/A')}</div>`;
           layer.bindPopup(popup);
 
           // register layer by id (fallback to coordinate key)

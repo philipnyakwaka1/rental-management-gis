@@ -228,7 +228,12 @@ def user_buildings_me(request):
     else:
         paginator = CustomPagination()
         paginated_buildings = paginator.paginate_queryset(buildings, request)
-        buildings_serialized = list(map(lambda x: serializers.serialize('geojson', [x]), paginated_buildings))
+        buildings_serialized = []
+        for building in paginated_buildings:
+            building_geojson = json.loads(serializers.serialize('geojson', [building]))
+            if building.image:
+                building_geojson['features'][0]['properties']['image'] = building.image.name
+            buildings_serialized.append(building_geojson)
         return paginator.get_paginated_response(buildings_serialized)
 
 @api_view(['GET'])
@@ -253,7 +258,12 @@ def user_buildings(request, pk):
     else:
         paginator = CustomPagination()
         paginated_buildings = paginator.paginate_queryset(buildings, request)
-        buildings_serialized = list(map(lambda x: serializers.serialize('geojson', [x]), paginated_buildings))
+        buildings_serialized = []
+        for building in paginated_buildings:
+            building_geojson = json.loads(serializers.serialize('geojson', [building]))
+            if building.image:
+                building_geojson['features'][0]['properties']['image'] = building.image.name
+            buildings_serialized.append(building_geojson)
         return paginator.get_paginated_response(buildings_serialized)
 
 
@@ -331,6 +341,10 @@ def building_list_create(request):
             buildings_data = []
             for building in paginated_buildings:
                 building_geojson = json.loads(serializers.serialize('geojson', [building]))
+                
+                # Add image URL to properties
+                if building.image:
+                    building_geojson['features'][0]['properties']['image'] = building.image.name
                 
                 # Add all nearby POIs data
                 nearby_pois = _get_all_nearby_pois(building, request.query_params)

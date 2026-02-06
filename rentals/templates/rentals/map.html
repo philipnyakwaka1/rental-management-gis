@@ -1,16 +1,15 @@
 {% extends 'rentals/base.html' %}
 {% load static %}
 
-{% block title %}Rentals Map & Listings{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3"> <!--style="background-color: blue;"-->
-  <div class="row g-3"><!--style="background-color: yellow;"-->
-    <div class="col-lg-4"> <!--style="background-color: red;"-->
-      <div class="card"> <!--style="background-color: lightblue;"-->
-        <div class="card-body"> <!--style="background-color: lightgreen;"-->
+<div class="container-fluid py-3"> 
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-body">
           <p class="card-title search-title">Search by location and more</p>
-          <form id="filters-form" class="mb-3"> <!--style="background-color: lightyellow;"-->
+          <form id="filters-form" class="mb-3">
             <div class="mb-2">
               <label for="district-select" class="form-label">District</label>
               <select id="district-select" name="district" class="form-select">
@@ -34,7 +33,6 @@
                 <button id="add-poi-filter" type="button" class="btn btn-sm btn-outline-primary">+ Add Filter</button>
               </div>
               <div id="poi-filters-container">
-                <!-- Dynamic filters will be added here -->
               </div>
             </div>
 
@@ -53,8 +51,8 @@
       </div>
     </div>
 
-    <div class="col-lg-8"> <!--style="background-color: purple;"-->
-      <div class="card h-100"> <!--style="background-color: lightgray;"-->
+    <div class="col-lg-8">
+      <div class="card h-100">
         <div class="card-body p-0 h-100">
           <div id="map" class="h-100 w-100"></div>
         </div>
