@@ -207,7 +207,13 @@
                 const originalUsernameNow = originalUsernameInputNow ? originalUsernameInputNow.value : '';
                 try {
                     const verifyResp = await fetch('/rentals/api/v1/users/login/', {
-                        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({username: originalUsernameNow, password: oldPw})
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': accForm.querySelector('input[name="csrfmiddlewaretoken"]').value
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({username: originalUsernameNow, password: oldPw})
                     });
                     if (!verifyResp.ok) { showAlert('Current password is incorrect.', 'danger'); return; }
                 } catch (err) { showAlert('Unable to verify current password (network error).', 'danger'); return; }
@@ -240,7 +246,23 @@
                     'Authorization': 'Bearer ' + window.sessionStorage.getItem('access_token')},
                     body: JSON.stringify(payload) 
                 });
-                if (resp.ok) { showAlert('Profile updated successfully.', 'success'); return; }
+                if (resp.ok) {
+                    showAlert('Profile updated successfully.', 'success');
+                    if (newPw) {
+                        const passwordArea = document.getElementById('password-area');
+                        if (passwordArea) {
+                            passwordArea.classList.remove('show');
+                        }
+                        ['id_old_password','id_new_password1','id_new_password2'].forEach(id => {
+                            const el = document.getElementById(id);
+                            if (el) {
+                                el.value = '';
+                                el.removeAttribute('required');
+                            }
+                        });
+                    }
+                    return;
+                }
                 const errObj = await resp.json().catch(()=>null);
                 if (errObj) {
                     showAlert(JSON.stringify(errObj), 'danger');
@@ -248,6 +270,94 @@
                 }
                 showAlert('Failed to update profile.', 'danger');
             } catch (err) { showAlert('Network error while updating profile.', 'danger'); }
+        });
+    }
+
+    // Account deletion handler
+    const deleteBtn = document.getElementById('btn-confirm-delete');
+    const deleteForm = document.getElementById('confirm-delete-form');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', async function(e){
+            e.preventDefault();
+            clearAlert();
+
+            // Get the password input from the delete form
+            const passwordInput = deleteForm.querySelector('input[name="password_confirm"]');
+            const password = passwordInput ? passwordInput.value.trim() : '';
+
+            if (!password) {
+                showAlert('Please enter your password to confirm account deletion.', 'danger');
+                return;
+            }
+
+            // Verify password by attempting login with current username
+            const usernameField = accForm.querySelector('#current-username');
+            const username = usernameField ? usernameField.value : '';
+
+            if (!username) {
+                showAlert('Unable to verify identity. Please refresh the page.', 'danger');
+                return;
+            }
+
+            try {
+                // Attempt to login with provided password to verify it's correct
+                const verifyResp = await fetch('/rentals/api/v1/users/login/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': deleteForm.querySelector('input[name="csrfmiddlewaretoken"]').value
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ username: username, password: password})
+                });
+
+                if (!verifyResp.ok) {
+                    showAlert('Password is incorrect. Cannot delete account.', 'danger');
+                    return;
+                }
+
+                // Password is correct, proceed with deletion
+                const token = window.sessionStorage.getItem('access_token');
+                const csrfToken = deleteForm.querySelector('input[name="csrfmiddlewaretoken"]') ? deleteForm.querySelector('input[name="csrfmiddlewaretoken"]').value : '';
+                
+                const deleteResp = await fetch('/rentals/api/v1/users/me/', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken,
+                        'Authorization': 'Bearer ' + token
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (deleteResp.ok) {
+                    const deleteModalEl = document.getElementById('confirmDeleteAccount');
+                    if (deleteModalEl) {
+                        if (window.bootstrap && window.bootstrap.Modal) {
+                            const modal = window.bootstrap.Modal.getInstance(deleteModalEl) || new window.bootstrap.Modal(deleteModalEl);
+                            modal.hide();
+                        } else {
+                            deleteModalEl.classList.remove('show');
+                            deleteModalEl.style.display = 'none';
+                            deleteModalEl.setAttribute('aria-hidden', 'true');
+                            document.body.classList.remove('modal-open');
+                            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                        }
+                    }
+                    showAlert('Account deleted successfully. Redirecting to login...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/rentals/user/login/';
+                    }, 2000);
+                    return;
+                }
+
+                const errObj = await deleteResp.json().catch(() => null);
+                const errorMsg = errObj ? (errObj.detail || errObj.error || JSON.stringify(errObj)) : 'Failed to delete account';
+                showAlert('Deletion failed: ' + errorMsg, 'danger');
+            } catch (err) {
+                console.error('Delete error', err);
+                showAlert('Network error while deleting account: ' + String(err), 'danger');
+            }
         });
     }
 

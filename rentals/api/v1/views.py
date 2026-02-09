@@ -27,7 +27,6 @@ from django.db.models import Exists, OuterRef
 from django.contrib.gis.db.models.functions import Distance
 import json
 
-
 User = get_user_model()
 
 # User Views
@@ -73,7 +72,7 @@ def user_login(request):
         key='refresh',
         value=str(refresh),
         httponly=True,
-        secure=not settings.DEBUG,  # True in production (when DEBUG=False)
+        secure=not settings.DEBUG,
         samesite='Lax',
         max_age=60 * 60 * 24 * 30 # 30 days
     )
@@ -492,8 +491,6 @@ def _apply_building_filters(query_params):
                 
             try:
                 radius_m = float(poi_radius)
-                
-                # Validate radius is positive
                 if radius_m <= 0:
                     continue
                 

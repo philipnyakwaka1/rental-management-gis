@@ -33,8 +33,8 @@ class Building(models.Model):
 class Profile(models.Model):
     """Model representing a user profile."""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile', null=True, default=None)
-    phone_number = models.CharField(max_length=15, null=True, default=None)
-    address = models.CharField(max_length=255, null=True, default=None)
+    phone_number = models.CharField(max_length=15, null=True, default=None, blank=True)
+    address = models.CharField(max_length=255, null=True, default=None, blank=True)
     building = models.ManyToManyField(Building, through='ProfileBuilding', related_name='profiles')
 
     def __str__(self):

@@ -85,7 +85,7 @@
                 const alert = document.createElement('div');
                 alert.className = 'alert alert-success';
                 alert.setAttribute('role', 'alert');
-                alert.textContent = msg;  // Use textContent instead of innerHTML to prevent XSS
+                alert.textContent = msg; 
                 container.appendChild(alert);
                 if (main) main.insertBefore(container, main.firstChild);
                 sessionStorage.removeItem('logout_message');

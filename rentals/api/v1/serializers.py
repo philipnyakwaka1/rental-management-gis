@@ -80,14 +80,11 @@ class BuildingSerializer(serializers.ModelSerializer):
         extra_kwargs = {'created_at': {'read_only': True}, 'updated_at': {'read_only': True}}
 
     def validate_image(self, value):
-        # Validate file is actually an image (server-side check)
         if value:
             import imghdr
-            # Check magic number
             image_type = imghdr.what(value)
             if not image_type:
                 raise serializers.ValidationError("Uploaded file is not a valid image.")
-            # Check file extension matches content
             allowed_types = ['jpeg', 'jpg', 'png', 'gif', 'webp']
             if image_type not in allowed_types:
                 raise serializers.ValidationError(f"Image type '{image_type}' is not supported. Allowed types: {', '.join(allowed_types)}")
@@ -140,7 +137,6 @@ class BuildingSerializer(serializers.ModelSerializer):
             elif not district:
                 raise serializers.ValidationError(f"District '{district_name}' does not exist.")
         
-        # Return Point object directly
         return point
         
     def create(self, validated_data):
