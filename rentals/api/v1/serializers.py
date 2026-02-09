@@ -80,8 +80,36 @@ class BuildingSerializer(serializers.ModelSerializer):
         extra_kwargs = {'created_at': {'read_only': True}, 'updated_at': {'read_only': True}}
 
     def validate_image(self, value):
+        if value:
+            import imghdr
+            image_type = imghdr.what(value)
+            if not image_type:
+                raise serializers.ValidationError("Uploaded file is not a valid image.")
+            allowed_types = ['jpeg', 'jpg', 'png', 'gif', 'webp']
+            if image_type not in allowed_types:
+                raise serializers.ValidationError(f"Image type '{image_type}' is not supported. Allowed types: {', '.join(allowed_types)}")
         if value.size > 2 * 1024 * 1024:
             raise serializers.ValidationError("Image size should not exceed 2MB.")
+        return value
+    
+    def validate_rental_price(self, value):
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Rental price must be greater than 0.")
+        return value
+    
+    def validate_num_bedrooms(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Number of bedrooms cannot be negative.")
+        return value
+    
+    def validate_num_bathrooms(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Number of bathrooms cannot be negative.")
+        return value
+    
+    def validate_square_meters(self, value):
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Square meters must be greater than 0.")
         return value
     
     def validate_location(self, value):
@@ -93,26 +121,30 @@ class BuildingSerializer(serializers.ModelSerializer):
             lon = float(coords[1])
         except Exception as e:
             raise serializers.ValidationError("Coordinate format cannot be parsed. The coordinate should be two floats values separated by a comma.")
+
+        if not (-90 <= lat <= 90):
+            raise serializers.ValidationError("Latitude must be between -90 and 90 degrees.")
+        if not (-180 <= lon <= 180):
+            raise serializers.ValidationError("Longitude must be between -180 and 180 degrees.")
         
-        # check if building lies within the district boundary can be added here
+        # Check if building lies within the district boundary (only if district is provided)
         point = Point(lon, lat, srid=4326)
-        district = District.objects.filter(name=self.initial_data.get('district')).first()
-        if not district or not district.geometry.contains(point):
-            raise serializers.ValidationError(f"Building location must be within {district.name if district else 'a valid'} district boundary.")
-        return lat, lon
+        district_name = self.initial_data.get('district')
+        if district_name:
+            district = District.objects.filter(name=district_name).first()
+            if district and not district.geometry.contains(point):
+                raise serializers.ValidationError(f"Building location must be within {district.name} district boundary.")
+            elif not district:
+                raise serializers.ValidationError(f"District '{district_name}' does not exist.")
+        
+        return point
         
     def create(self, validated_data):
-        location = validated_data.pop('location', None)
-        if location is not None:
-            validated_data['location'] = Point(location[1], location[0], srid=4326)  # Note: Point takes (longitude, latitude)
         return self.Meta.model.objects.create(**validated_data)
     
     def update(self, instance, validated_data):
-        location = validated_data.pop('location', None)
         for attr, value in validated_data.items():
             if hasattr(instance, attr):
                 setattr(instance, attr, value)
-        if location is not None:
-            instance.location = Point(location[1], location[0], srid=4326)  # Note: Point takes (longitude, latitude)
         instance.save()
         return instance

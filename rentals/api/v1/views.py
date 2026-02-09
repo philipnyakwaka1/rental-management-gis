@@ -27,7 +27,6 @@ from django.db.models import Exists, OuterRef
 from django.contrib.gis.db.models.functions import Distance
 import json
 
-
 User = get_user_model()
 
 # User Views
@@ -39,7 +38,7 @@ def check_user_permission(request, pk):
     if not (request.user.is_staff or request.user.pk == pk):
         raise PermissionDenied("You do not have permission to perform this action.")
 
-@api_view(['PUT'])
+@api_view(['POST'])
 def user_register(request):
     try:
         username = request.data.get('username')
@@ -68,11 +67,12 @@ def user_login(request):
     response = Response({'access': access}, status=status.HTTP_200_OK)
 
     # Set refresh token in secure HttpOnly cookie to reduce XSS risk.
+    from django.conf import settings
     response.set_cookie(
         key='refresh',
         value=str(refresh),
         httponly=True,
-        secure=False,        # set True in production (HTTPS)
+        secure=not settings.DEBUG,
         samesite='Lax',
         max_age=60 * 60 * 24 * 30 # 30 days
     )
@@ -91,7 +91,7 @@ def user_refresh_token(request):
     except TokenError:
         return Response({'error': 'Invalid refresh token'}, status=status.HTTP_401_UNAUTHORIZED)
 
-@api_view(['GET'])
+@api_view(['POST'])
 def user_logout(request):
     response = Response({'message': 'Logged out successfully'}, status=status.HTTP_200_OK)
     response.delete_cookie('refresh')
@@ -319,7 +319,7 @@ def check_modify_building_permission(request, building):
     except Profile.DoesNotExist:
         raise PermissionDenied("You do not have permission to modify this building.")
 
-@api_view(['GET', 'PUT'])
+@api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticatedOrReadOnly])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 def building_list_create(request):
@@ -355,7 +355,7 @@ def building_list_create(request):
             
             return paginator.get_paginated_response(buildings_data)
 
-    elif request.method == 'PUT':
+    elif request.method == 'POST':
         user = request.user
         if not user or not user.is_authenticated:
             return Response({'error': 'Authentication credentials were not provided.'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -443,7 +443,7 @@ def building_profiles(request, building_pk, user_pk):
 def building_profiles_list(request, building_pk):
     try:
         building = Building.objects.get(pk=building_pk)
-        profiles = Profile.objects.filter(building=building)
+        profiles = Profile.objects.filter(building=building).select_related('user')
     except Building.DoesNotExist:
         return Response({'error': 'Building not found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -491,6 +491,8 @@ def _apply_building_filters(query_params):
                 
             try:
                 radius_m = float(poi_radius)
+                if radius_m <= 0:
+                    continue
                 
                 # Use unique annotation names to avoid overwriting and ensure proper AND logic
                 if poi_type == 'shops':
@@ -501,6 +503,7 @@ def _apply_building_filters(query_params):
                                 geometry__dwithin=(OuterRef('location'), radius_m)
                             )
                         )
+                            @permission_classes([IsAuthenticated])
                     }).filter(**{annotation_name: True})
                 
                 elif poi_type == 'bus_stop':

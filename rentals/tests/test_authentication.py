@@ -16,10 +16,10 @@ User = get_user_model()
 class AuthenticationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.register_url = reverse('user-register')
-        self.login_url = reverse('user-login')
-        self.refresh_url = reverse('user-refresh-token')
-        self.logout_url = reverse('user-logout')
+        self.register_url = reverse('rentals:user-register')
+        self.login_url = reverse('rentals:user-login')
+        self.refresh_url = reverse('rentals:user-refresh-token')
+        self.logout_url = reverse('rentals:user-logout')
         # Disconnect profile-creation signal to avoid migration timing issues during tests
         post_save.disconnect(signals.create_user_profile, sender=get_user_model())
 
@@ -33,18 +33,18 @@ class AuthenticationTests(TestCase):
 
     def test_register_success(self):
         data = {'username': 'newuser', 'email': 'new@example.com', 'password': 'Str0ng!Pass'}
-        resp = self.client.put(self.register_url, data, format='json')
+        resp = self.client.post(self.register_url, data, format='json')
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data.get('username'), 'newuser')
 
     def test_register_existing_user(self):
         data = {'username': 'testuser', 'email': 'x@example.com', 'password': 'Str0ng!Pass'}
-        resp = self.client.put(self.register_url, data, format='json')
+        resp = self.client.post(self.register_url, data, format='json')
         self.assertEqual(resp.status_code, 400)
 
     def test_register_weak_password(self):
         data = {'username': 'weak', 'email': 'w@example.com', 'password': 'weakpass'}
-        resp = self.client.put(self.register_url, data, format='json')
+        resp = self.client.post(self.register_url, data, format='json')
         self.assertEqual(resp.status_code, 400)
 
     def test_login_success_sets_tokens(self):
@@ -64,7 +64,7 @@ class AuthenticationTests(TestCase):
         access = resp.data.get('access')
         refresh_cookie = resp.cookies.get('refresh')
 
-        user_detail_url = reverse('user-detail', kwargs={'pk': self.user.pk})
+        user_detail_url = reverse('rentals:user-detail', kwargs={'pk': self.user.pk})
         auth_client = APIClient()
         auth_client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
         r = auth_client.get(user_detail_url)
@@ -85,7 +85,7 @@ class AuthenticationTests(TestCase):
         resp = self.client.post(self.login_url, {'username': 'testuser', 'password': 'StrongP@ss1'}, format='json')
         self.assertEqual(resp.status_code, 200)
         self.assertIn('refresh', resp.cookies)
-        r = self.client.get(self.logout_url)
+        r = self.client.post(self.logout_url)
         self.assertEqual(r.status_code, 200)
         morsel = r.cookies.get('refresh')
         self.assertIsNotNone(morsel)

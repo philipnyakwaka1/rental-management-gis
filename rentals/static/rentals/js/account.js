@@ -20,6 +20,14 @@
 
   // Reusable authenticated fetch with auto-refresh
   async function authFetch(url, options = {}) {
+    // Prevent infinite retry loops
+    const retryAttempt = options.__retryAttempt || 0;
+    if (retryAttempt > 1) {
+      console.error('Max retry attempts reached');
+      window.location.href = '/rentals/user/login/';
+      return;
+    }
+    
     options.method = options.method || 'GET';
     options.headers = options.headers || {};
     const accessToken = window.sessionStorage.getItem('access_token');
@@ -51,7 +59,15 @@
       window.sessionStorage.setItem('access_token', newAccess);
 
       options.headers['Authorization'] = 'Bearer ' + newAccess;
+      options.__retryAttempt = retryAttempt + 1;
       response = await fetch(url, options);
+      
+      // If still 401 after refresh, give up
+      if (response.status === 401) {
+        console.warn('Still unauthorized after refresh. Redirecting to login.');
+        window.location.href = '/rentals/user/login/';
+        return;
+      }
     }
 
     return response;
@@ -168,7 +184,21 @@
                 const coordsEl = document.getElementById('b-coords');
                 if (coordsEl) coordsEl.value = `${lat}, ${lon}`;
             }, function(err){
-                alert('Unable to fetch device location: ' + (err && err.message ? err.message : 'unknown'));
+            let errorMsg = 'Unable to fetch device location: ';
+            switch(err.code) {
+              case err.PERMISSION_DENIED:
+                errorMsg += 'Permission denied. Please allow location access in your browser settings.';
+                break;
+              case err.POSITION_UNAVAILABLE:
+                errorMsg += 'Location information is unavailable.';
+                break;
+              case err.TIMEOUT:
+                errorMsg += 'Location request timed out. Please try again.';
+                break;
+              default:
+                errorMsg += (err.message || 'Unknown error');
+            }
+            alert(errorMsg);
             });
         });
     }
@@ -273,6 +303,7 @@
             const imageFiles = imageInput?.files || [];
 
             if (!address) return alert('Address is required');
+            if (!district) return alert('District is required');
             if (!locationRaw) return alert('Location is required');
             if (!rental_price) return alert('Rental price is required');
 
@@ -293,6 +324,15 @@
             const coords = locationRaw.split(',').map(c=>c.trim());
             if (coords.length !==2 || isNaN(coords[0]) || isNaN(coords[1])) 
                 return alert('Location must be in format "latitude, longitude"');
+            
+            const lat = parseFloat(coords[0]);
+            const lon = parseFloat(coords[1]);
+            
+            // Validate coordinate ranges
+            if (lat < -90 || lat > 90) 
+              return alert('Latitude must be between -90 and 90 degrees.');
+            if (lon < -180 || lon > 180)
+              return alert('Longitude must be between -180 and 180 degrees.');
 
             // Capitalize district and validate
             if (district) {
@@ -305,8 +345,10 @@
                     return alert('Invalid district. Please select a valid district from the drop-down list.');
                 }
             }
-
+            
+            // Create FormData object after all validations pass
             const formData = new FormData();
+            
             if (title) formData.append('title', title);
             formData.append('address', address);
             if (district) formData.append('district', district);
@@ -337,7 +379,7 @@
                   }
                 } else {
                   // create new building
-                  const response = await authFetch('/rentals/api/v1/buildings/', { method: 'PUT', body: formData });
+                  const response = await authFetch('/rentals/api/v1/buildings/', { method: 'POST', body: formData });
                   if (!response.ok){
                     const err = await response.json().catch(()=>null);
                     alert('Failed to create listing: ' + (err ? JSON.stringify(err) : response.statusText));
