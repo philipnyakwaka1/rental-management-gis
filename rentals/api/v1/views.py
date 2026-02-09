@@ -503,7 +503,6 @@ def _apply_building_filters(query_params):
                                 geometry__dwithin=(OuterRef('location'), radius_m)
                             )
                         )
-                            @permission_classes([IsAuthenticated])
                     }).filter(**{annotation_name: True})
                 
                 elif poi_type == 'bus_stop':
