@@ -128,7 +128,7 @@
               <input id="b-district" name="district" class="form-control" list="districts-list" placeholder="Select or type district..." required />
               <datalist id="districts-list">
                 {% for district in districts %}
-                  <option value="{{ district.name }}"></option>
+                  <option value="{{ district }}"></option>
                 {% endfor %}
               </datalist>
             </div>
