@@ -49,11 +49,6 @@
                 mapCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }
-        
-        // Small delay to allow scroll to complete before zooming
-        setTimeout(() => {
-            map.flyTo([coords[1], coords[0]], 16);
-        }, 300);
 
         const props = f.properties || {};
         const key = props.id || props.pk || `${coords[0].toFixed(6)}_${coords[1].toFixed(6)}`;
@@ -74,7 +69,21 @@
             popupAnchor: [1,-34],
             shadowSize: [41,41]
           });
-          try{ baseLayerMarker.setIcon(redIcon); baseLayerMarker.openPopup(); activeHighlight = {layer: baseLayerMarker, prevIcon: prev}; }catch(e){ console.warn('setIcon failed', e); }
+          try{ 
+            baseLayerMarker.setIcon(redIcon);
+            // Use markerCluster's zoomToShowLayer to uncluster and zoom to the marker
+            if(allBuildingsLayer && allBuildingsLayer.zoomToShowLayer){
+              allBuildingsLayer.zoomToShowLayer(baseLayerMarker, function(){
+                // Open popup after unclustering completes
+                setTimeout(() => baseLayerMarker.openPopup(), 300);
+              });
+            } else {
+              // Fallback if cluster method not available
+              map.flyTo(baseLayerMarker.getLatLng(), 16);
+              setTimeout(() => baseLayerMarker.openPopup(), 300);
+            }
+            activeHighlight = {layer: baseLayerMarker, prevIcon: prev}; 
+          }catch(e){ console.warn('setIcon/zoomToShowLayer failed', e); }
           return;
         }
     }
@@ -207,7 +216,7 @@
     listings.fetchPage(1);
   }
 
-  // Load all buildings (GeoJSON) for map layer
+  // Load all buildings (GeoJSON) for map layer with clustering
   async function loadAllBuildings(){
     try{
       const url = `${API_BASE}/buildings/?geojson=true`;
@@ -218,21 +227,46 @@
       allBuildingsGeoJSON = data;
       if(allBuildingsLayer) map.removeLayer(allBuildingsLayer);
 
-      allBuildingsLayer = L.geoJSON(allBuildingsGeoJSON, {
-        pointToLayer: function(feature, latlng){
-          return L.marker(latlng, {icon: new customBuildingIcon()});
-        },
-        onEachFeature: function(feature, layer){
-          const props = feature.properties || {};
-          const popup = `<div>Address: <strong>${window.RentalsSharedUtils.escapeHtml(props.address||'Address')}</strong><br/>District: ${window.RentalsSharedUtils.escapeHtml(props.district||'N/A')}<br/>Price (USD): ${window.RentalsSharedUtils.escapeHtml(props.rental_price||'N/A')}<br/>Owner's contact: ${window.RentalsSharedUtils.escapeHtml(props.owner_contact||'N/A')}</div>`;
-          layer.bindPopup(popup);
-
-          // register layer by id (fallback to coordinate key)
-          const coords = feature.geometry && feature.geometry.coordinates;
-          const key = props.id || props.pk || (coords ? `${coords[0].toFixed(6)}_${coords[1].toFixed(6)}` : null);
-          if(key) idToLayer.set(String(key), layer);
+      // Create marker cluster group with custom styling (no hover polygon)
+      allBuildingsLayer = L.markerClusterGroup({
+        maxClusterRadius: 60,
+        showCoverageOnHover: false,  // Disable hover polygon
+        zoomToBoundsOnClick: true,   // Enable default clustering behavior
+        iconCreateFunction: function(cluster) {
+          const count = cluster.getChildCount();
+          return new L.DivIcon({
+            html: `<div class="cluster-marker"><img src="/static/rentals/icons/building-icon.svg" alt="cluster"/><span class="cluster-count">${count}</span></div>`,
+            className: '',
+            iconSize: [40, 45],
+            iconAnchor: [20, 45]
+          });
         }
-      }).addTo(map);
+      });
+
+      // Add markers to cluster group
+      (allBuildingsGeoJSON.features || []).forEach(feature => {
+        const coords = feature.geometry && feature.geometry.coordinates;
+        if(!coords) return;
+        
+        const latlng = [coords[1], coords[0]];
+        const marker = L.marker(latlng, {icon: new customBuildingIcon()});
+        
+        const props = feature.properties || {};
+        const popup = `<div>Address: <strong>${window.RentalsSharedUtils.escapeHtml(props.address||'Address')}</strong><br/>District: ${window.RentalsSharedUtils.escapeHtml(props.district||'N/A')}<br/>Price (USD): ${window.RentalsSharedUtils.escapeHtml(props.rental_price||'N/A')}<br/>Owner's contact: ${window.RentalsSharedUtils.escapeHtml(props.owner_contact||'N/A')}</div>`;
+        marker.bindPopup(popup);
+        
+        // register layer by id (fallback to coordinate key)
+        const key = props.id || props.pk || `${coords[0].toFixed(6)}_${coords[1].toFixed(6)}`;
+        if(key) idToLayer.set(String(key), marker);
+        
+        // Store feature reference for highlighting
+        marker.feature = feature;
+        
+        allBuildingsLayer.addLayer(marker);
+      });
+
+      allBuildingsLayer.addTo(map);
+      
       // fit bounds only if no other data is present (don't override user view)
       try{ if(allBuildingsLayer && allBuildingsLayer.getBounds && !map._initialBoundsSet){ map.fitBounds(allBuildingsLayer.getBounds(), {maxZoom: 14}); map._initialBoundsSet = true; } }catch(e){}
     }catch(e){ 

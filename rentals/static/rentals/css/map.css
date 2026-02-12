@@ -16,9 +16,10 @@ header {
 
 /* Map container must have a defined height */
 #map {
-    height: calc(100vh - 50px); /* Subtract header height for full remaining screen space */
+    height: 100%; /* Fill the card container */
     width: 100%;
     z-index: 1; /* Keep map below popups/controls */
+    min-height: 300px; /* Minimum height for usability */
 }
 
 /* Styles for the proximity buffer area */
@@ -43,6 +44,64 @@ header {
     font-weight: bold;
     margin-top: 40px;
     margin-bottom: 15px;
+}
+
+/* Card styling for the listings and map containers */
+.card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.card-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+/* Marker cluster styling */
+.cluster-icon {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.cluster-icon img {
+    filter: brightness(0.9);
+}
+
+/* DivIcon cluster marker */
+.cluster-marker {
+    position: relative;
+    width: 32px;
+    height: 37px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cluster-marker img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.cluster-count {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #dc3545;
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 11px;
+    border: 2px solid white;
+    box-shadow: 0 0 4px rgba(0,0,0,0.3);
 }
 
 /* ==========================================================
@@ -166,6 +225,49 @@ header {
     .demo-navbar .nav-link[href*="create"] {
         margin: 0.5rem 0 0;
         width: fit-content;
+    }
+
+    /* In mobile view, adjust the container and map height */
+    .container-fluid {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    /* For mobile, set the map to a fixed but responsive height */
+    #map {
+        height: 400px;
+        min-height: 400px;
+    }
+
+    /* Ensure cards don't overflow on mobile */
+    .card {
+        margin-bottom: 1rem;
+    }
+
+    /* Make listings container scrollable on mobile */
+    #listings {
+        max-height: 50vh !important;
+    }
+}
+
+/* Extra small devices */
+@media (max-width: 575px) {
+    #map {
+        height: 350px;
+        min-height: 350px;
+    }
+
+    #listings {
+        max-height: 40vh !important;
+    }
+}
+
+/* Desktop/tablet refinements */
+@media (min-width: 992px) {
+    /* On larger screens, use full viewport minus navbar heights */
+    #map {
+        height: calc(100vh - 180px);
+        min-height: 500px;
     }
 }
 
