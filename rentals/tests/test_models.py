@@ -1,13 +1,16 @@
 from django.test import TestCase
-from django.contrib.gis.geos import Point
+from django.contrib.gis.geos import Point, Polygon, MultiPolygon
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError
-from django.apps import apps
 
-from rentals.models import Building, Profile, ProfileBuilding
+from rentals.models import Building, Profile, ProfileBuilding, District
 
 
 User = get_user_model()
+
+
+polygon = Polygon(((-122.0, 37.0),(-122.0, 38.0),(-121.0, 38.0),(-121.0, 37.0),(-122.0, 37.0),), srid=4326)
+location = Point(-121.5, 37.5, srid=4326)
+multipolygon = MultiPolygon(polygon, srid=4326)
 
 
 class ModelsTestCase(TestCase):
@@ -22,16 +25,17 @@ class ModelsTestCase(TestCase):
 	- string representations for readability
 	"""
 
-	def make_point(self, x=1.0, y=2.0):
+	def make_point(self, x=-121.5, y=37.5):
 		"""Utility to create a simple Point for Building.location."""
-		return Point(x, y)
+		return Point(x, y, srid=4326)
 
 	def test_building_creation_valid(self):
 		"""A Building can be created with required fields and string repr works."""
+		district = District.objects.create(name="Test District1",county="Test County",geometry=multipolygon)
 		p = self.make_point()
 		b = Building.objects.create(
-			county='TestCounty',
-			district='TestDistrict',
+			county='Test County',
+			district=district,
 			address='123 Test St',
 			location=p,
 			rental_price='1200.00',
@@ -42,17 +46,14 @@ class ModelsTestCase(TestCase):
 		)
 
 		self.assertIsNotNone(b.id)
-		self.assertEqual(b.county, 'TestCounty')
+		self.assertEqual(b.county, 'Test County')
 		self.assertEqual(str(b), f"[{b.location.x}, {b.location.y}] - owner: {b.owner_contact}")
 
 	def test_building_creation_missing_location_raises(self):
+		district = District.objects.create(name="Test District2",county="Test County",geometry=multipolygon)
 		"""Creating a Building without a location should fail at DB level."""
 		with self.assertRaises(Exception):
-			Building.objects.create(
-				county='NoLoc',
-				address='Nowhere',
-				rental_price='0.00'
-			)
+			Building.objects.create(county='NoLoc',address='Nowhere', district=district,rental_price='0.00')
 
 	def test_profile_auto_created_on_user_creation(self):
 		"""Saving a new User should create an associated Profile (signal)."""
@@ -63,12 +64,13 @@ class ModelsTestCase(TestCase):
 		self.assertEqual(str(profile), f"{user.username} Profile")
 
 	def test_profile_building_relationship(self):
+		district = District.objects.create(name="Test District3",county="Test County",geometry=multipolygon)
 		"""Test adding buildings to a profile and reverse relation from building to profiles."""
 		user = User.objects.create_user(username='bob', email='bob@example.com', password='pass')
 		profile = user.profile
 
-		b1 = Building.objects.create(address='A1', location=self.make_point(0, 0), owner_contact='o1')
-		b2 = Building.objects.create(address='A2', location=self.make_point(1, 1), owner_contact='o2')
+		b1 = Building.objects.create(address='A1', location=self.make_point(-121.90, 37.10), owner_contact='o1', district=district)
+		b2 = Building.objects.create(address='A2', location=self.make_point(-121.60, 37.40), owner_contact='o2', district=district)
 
 		profile.building.add(b1)
 		profile.building.add(b2)
@@ -87,11 +89,12 @@ class ModelsTestCase(TestCase):
 		self.assertIn('Profile: ', str(pb))
 
 	def test_profile_deletion_deletes_orphan_building(self):
+		district = District.objects.create(name="Test District4",county="Test County",geometry=multipolygon)
 		"""If a Profile is the only owner of a Building, deleting the Profile deletes the Building."""
 		user = User.objects.create_user(username='carol', email='carol@example.com', password='pass')
 		profile = user.profile
 
-		b = Building.objects.create(address='Orphan', location=self.make_point(2, 2), owner_contact='oc')
+		b = Building.objects.create(address='Orphan', location=self.make_point(-121.50, 37.50), owner_contact='oc', district=district)
 		profile.building.add(b)
 
 		self.assertTrue(Building.objects.filter(id=b.id).exists())
@@ -103,12 +106,13 @@ class ModelsTestCase(TestCase):
 
 	def test_profile_deletion_keeps_shared_building(self):
 		"""If multiple Profiles reference a Building, deleting one Profile should NOT delete the Building."""
+		district = District.objects.create(name="Test District5",county="Test County",geometry=multipolygon)
 		u1 = User.objects.create_user(username='d1', email='d1@example.com', password='pass')
 		u2 = User.objects.create_user(username='d2', email='d2@example.com', password='pass')
 		p1 = u1.profile
 		p2 = u2.profile
 
-		b = Building.objects.create(address='Shared', location=self.make_point(3, 3), owner_contact='oc')
+		b = Building.objects.create(address='Shared', location=self.make_point(-121.40, 37.65), owner_contact='oc', district=district)
 		p1.building.add(b)
 		p2.building.add(b)
 
@@ -119,10 +123,11 @@ class ModelsTestCase(TestCase):
 
 	def test_building_deletion_updates_profile_relations(self):
 		"""Deleting a Building should remove it from related Profiles (through cascade)."""
+		district = District.objects.create(name="Test District6",county="Test County",geometry=multipolygon)
 		user = User.objects.create_user(username='ellen', email='ellen@example.com', password='pass')
 		profile = user.profile
 
-		b = Building.objects.create(address='ToBeDeleted', location=self.make_point(4, 4), owner_contact='oc')
+		b = Building.objects.create(address='ToBeDeleted', location=self.make_point(-121.30, 37.80), owner_contact='oc', district=district)
 		profile.building.add(b)
 
 		b.delete()
@@ -132,11 +137,12 @@ class ModelsTestCase(TestCase):
 
 	def test_user_deletion_triggers_profile_and_building_cleanup(self):
 		"""Deleting a User cascades to Profile; signals should then clean-up orphan Buildings."""
+		district = District.objects.create(name="Test District6",county="Test County",geometry=multipolygon)
 		user = User.objects.create_user(username='frank', email='frank@example.com', password='pass')
 		profile = user.profile
 
-		b1 = Building.objects.create(address='B1', location=self.make_point(5, 5), owner_contact='oc')
-		b2 = Building.objects.create(address='B2', location=self.make_point(6, 6), owner_contact='oc')
+		b1 = Building.objects.create(address='B1', location=self.make_point(-121.15, 37.90), owner_contact='oc', district=district)
+		b2 = Building.objects.create(address='B2', location=self.make_point(-121.75, 37.25), owner_contact='oc', district=district)
 
 		profile.building.add(b1)
 		profile.building.add(b2)

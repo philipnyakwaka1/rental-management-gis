@@ -9,10 +9,11 @@ from rest_framework.exceptions import PermissionDenied
 
 # Model imports
 from django.contrib.auth import get_user_model
-from rentals.models import Profile, Building, BusStop, Route, Shops
+from rentals.models import Profile, Building, ProfileBuilding, BusStop, Route, Shops
+from django.db import transaction
 
 # Serializers imports
-from rentals.api.v1.serializers import UserSerializer, ProfileSerializer, BuildingSerializer
+from rentals.api.v1.serializers import UserSerializer, ProfileSerializer, BuildingSerializer, BuildingGeoSerializer
 from django.core import serializers
 
 from rentals.api.v1.pagination import CustomPagination
@@ -24,7 +25,7 @@ from django.contrib.auth import authenticate
 
 # Database & GIS imports
 from django.db.models import Exists, OuterRef
-from django.contrib.gis.db.models.functions import Distance
+from django.contrib.gis.db.models.functions import Distance, AsGeoJSON
 import json
 
 User = get_user_model()
@@ -33,8 +34,6 @@ User = get_user_model()
 
 # User view permissions and implementations
 def check_user_permission(request, pk):
-    if not request.user.is_authenticated:
-        raise PermissionDenied("Authentication credentials were not provided.")
     if not (request.user.is_staff or request.user.pk == pk):
         raise PermissionDenied("You do not have permission to perform this action.")
 
@@ -102,7 +101,9 @@ def user_logout(request):
 def user_detail(request, pk):
     try:
         check_user_permission(request, pk)
-        user = User.objects.get(pk=pk)
+        user = User.objects.select_related('profile').only(
+            'id', 'username', 'email', 'first_name', 'last_name', 'profile__phone_number', 'profile__address'
+        ).get(pk=pk)
     except User.DoesNotExist:
         return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
     except PermissionDenied as e:
@@ -110,9 +111,7 @@ def user_detail(request, pk):
     
     if request.method == 'GET':
         serializer = UserSerializer(user)
-        profile_serializer = ProfileSerializer(user.profile)
-        data = {**serializer.data, 'profile': profile_serializer.data}
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     elif request.method == 'PATCH':
         serializer = UserSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
@@ -126,11 +125,13 @@ def user_detail(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def user_list(request):
-    users = User.objects.all()
+    users = User.objects.select_related('profile').only(
+            'id', 'username', 'email', 'first_name', 'last_name', 'profile__phone_number', 'profile__address'
+        ).all()
     paginator = CustomPagination()
     paginated_users = paginator.paginate_queryset(users, request)
-    users = list(map(lambda x: {**UserSerializer(x).data, 'profile': ProfileSerializer(x.profile).data}, paginated_users))
-    return paginator.get_paginated_response(users)
+    serializer = UserSerializer(paginated_users, many=True)
+    return paginator.get_paginated_response(serializer.data)
 
 
 @api_view(['GET', 'PATCH', 'DELETE'])
@@ -139,32 +140,19 @@ def user_detail_me(request):
     """Operate on the authenticated user's account (GET, PATCH, DELETE).
     This mirrors `user_detail` but always uses request.user fetched fresh from DB.
     """
+
     try:
         # Re-fetch user from DB to ensure up-to-date object
-        user = User.objects.get(pk=request.user.pk)
+        user = User.objects.select_related('profile').only(
+            'id', 'username', 'email', 'first_name', 'last_name', 'profile__phone_number', 'profile__address'
+        ).get(pk=request.user.pk)
     except User.DoesNotExist:
         return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-
+    
     if request.method == 'GET':
         serializer = UserSerializer(user)
-        profile_serializer = ProfileSerializer(user.profile)
-        data = {**serializer.data, 'profile': profile_serializer.data}
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     elif request.method == 'PATCH':
-        #If data contains phone number or address, update profile as well
-        profile_data = {}
-        if 'phone' in request.data:
-            profile_data['phone_number'] = request.data['phone']
-        if 'address' in request.data:
-            profile_data['address'] = request.data['address']
-        
-        if profile_data:
-            profile_serializer = ProfileSerializer(user.profile, data=profile_data, partial=True)
-            if profile_serializer.is_valid():
-                profile_serializer.save()
-            else:
-                return Response(profile_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
         serializer = UserSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -174,26 +162,21 @@ def user_detail_me(request):
         user.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-
 @api_view(['GET', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def profile_detail_me(request):
     """Operate on the authenticated user's profile (GET, PATCH, DELETE).
     Mirrors `profile_detail` but uses request.user.
     """
+    user = request.user
     try:
-        user = User.objects.get(pk=request.user.pk)
-        profile = Profile.objects.get(user=user)
-    except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        profile = user.profile
     except Profile.DoesNotExist:
-        return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'GET':
         serializer = ProfileSerializer(profile)
-        user_serializer = UserSerializer(user)
-        data = {**user_serializer.data, 'profile': serializer.data}
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     elif request.method == 'PATCH':
         serializer = ProfileSerializer(profile, data=request.data, partial=True)
         if serializer.is_valid():
@@ -202,69 +185,69 @@ def profile_detail_me(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     elif request.method == 'DELETE':
         profile.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({'message': 'User profile deleted succesfully'}, status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_buildings_me(request):
-    """Return buildings for the authenticated user (paginated geojson or full geojson parameter).
-    Mirrors `user_buildings` but uses request.user.
-    """
-    try:
-        # ensure up-to-date user/profile
-        user = User.objects.get(pk=request.user.pk)
-        profile = Profile.objects.get(user=user)
-        buildings = profile.building.all()
-    except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-    except Profile.DoesNotExist:
-        return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+    queryset = Building.objects.filter(
+        profiles__user=request.user
+    ).select_related('district').annotate(
+        geojson_geom=AsGeoJSON('location')
+    ).only(
+        'id', 'title', 'county', 'address', 'rental_price',
+        'num_bedrooms', 'num_bathrooms', 'square_meters', 'amenities',
+        'image', 'description', 'owner_contact', 'district__id', 'district__name'
+    ).order_by('id')  # Stable ordering for consistent pagination
 
-    geojson = request.query_params.get('geojson', 'false').lower()
-    if geojson == 'true':
-        buildings_geojson = serializers.serialize('geojson', buildings)
-        return Response(buildings_geojson, status=status.HTTP_200_OK, content_type='application/json')
-    else:
-        paginator = CustomPagination()
-        paginated_buildings = paginator.paginate_queryset(buildings, request)
-        buildings_serialized = []
-        for building in paginated_buildings:
-            building_geojson = json.loads(serializers.serialize('geojson', [building]))
-            if building.image:
-                building_geojson['features'][0]['properties']['image'] = building.image.name
-            buildings_serialized.append(building_geojson)
-        return paginator.get_paginated_response(buildings_serialized)
+    geojson_format = request.query_params.get('geojson', 'false').lower()
+
+    if geojson_format == 'true':
+        geojson_response = serializers.serialize('geojson', queryset,
+        geometry_field='location', fields=['address', 'price', 'owner_contact'])
+        return Response(geojson_response, status=status.HTTP_200_OK)
+
+    paginator = CustomPagination()
+    page = paginator.paginate_queryset(queryset, request)
+    serializer = BuildingGeoSerializer(page, many=True)
+    return paginator.get_paginated_response({
+        'type': 'FeatureCollection',
+        'features': serializer.data
+    })
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_buildings(request, pk):
     try:
         check_user_permission(request, pk)
-        user = User.objects.get(pk=pk)
-        profile = Profile.objects.get(user=user)
-        buildings = profile.building.all()
-    except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-    except Profile.DoesNotExist:
-        return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
     except PermissionDenied as e:
         return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
 
-    geojson = request.query_params.get('geojson', 'false').lower()
-    if geojson == 'true':
-        buildings_geojson = serializers.serialize('geojson', buildings)
-        return Response(buildings_geojson, status=status.HTTP_200_OK, content_type='application/json')
-    else:
-        paginator = CustomPagination()
-        paginated_buildings = paginator.paginate_queryset(buildings, request)
-        buildings_serialized = []
-        for building in paginated_buildings:
-            building_geojson = json.loads(serializers.serialize('geojson', [building]))
-            if building.image:
-                building_geojson['features'][0]['properties']['image'] = building.image.name
-            buildings_serialized.append(building_geojson)
-        return paginator.get_paginated_response(buildings_serialized)
+    queryset = Building.objects.filter(
+        profiles__user_id=pk
+    ).select_related('district').annotate(
+        geojson_geom=AsGeoJSON('location')
+    ).only(
+        'id', 'title', 'county', 'address', 'rental_price',
+        'num_bedrooms', 'num_bathrooms', 'square_meters', 'amenities',
+        'image', 'description', 'owner_contact', 'district__id', 'district__name'
+    ).order_by('id')  # Stable ordering for consistent pagination
+
+    geojson_format = request.query_params.get('geojson', 'false').lower()
+
+    if geojson_format == 'true':
+        geojson_response = serializers.serialize('geojson', queryset,
+        geometry_field='location', fields=['address', 'price', 'owner_contact'])
+        return Response(geojson_response, status=status.HTTP_200_OK)
+
+    paginator = CustomPagination()
+    page = paginator.paginate_queryset(queryset, request)
+    serializer = BuildingGeoSerializer(page, many=True)
+    return paginator.get_paginated_response({
+        'type': 'FeatureCollection',
+        'features': serializer.data
+    })
 
 
 # Profile Views
@@ -272,12 +255,10 @@ def user_buildings(request, pk):
 @api_view(['GET', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def profile_detail(request, pk):
+
     try:
+        profile = Profile.objects.get(user_id=pk)
         check_user_permission(request, pk)
-        user = User.objects.get(pk=pk)
-        profile = Profile.objects.get(user=user)
-    except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
     except Profile.DoesNotExist:
         return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
     except PermissionDenied as e:
@@ -285,9 +266,7 @@ def profile_detail(request, pk):
 
     if request.method == 'GET':
         serializer = ProfileSerializer(profile)
-        user_serializer = UserSerializer(user)
-        data = {**user_serializer.data, 'profile': serializer.data}
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     elif request.method == 'PATCH':
         serializer = ProfileSerializer(profile, data=request.data, partial=True)
         if serializer.is_valid():
@@ -302,21 +281,25 @@ def profile_detail(request, pk):
 
 # Building view permissions and implementations
 def check_create_building_permission(request, user_id):
-    if not request.user.is_authenticated:
-        raise PermissionDenied("Authentication credentials were not provided.")
     if not (request.user.is_staff or request.user.pk == user_id):
         raise PermissionDenied("You do not have permission to create a building for this user.")
     
-def check_modify_building_permission(request, building):
-    if not request.user.is_authenticated:
-        raise PermissionDenied("Authentication credentials were not provided.")
+def check_modify_building_permission(request, building_id, for_profile=False):
     if request.user.is_staff:
-        return
+        try:
+            building = Building.objects.get(pk=building_id)
+            return {'building': building}
+        except Building.DoesNotExist:
+            raise PermissionDenied("Building does not exist")
     try:
-        profile = Profile.objects.get(user=request.user)
-        if building not in profile.building.all():
-            raise PermissionDenied("You do not have permission to modify this building.")
-    except Profile.DoesNotExist:
+        if for_profile:
+            profile_building = ProfileBuilding.objects.prefetch_related('profile', 'building')\
+                .filter(profile__user_id=request.user.pk, building_id=building_id).get()
+        else:
+            profile_building = ProfileBuilding.objects.select_related('profile', 'building', 'building__district')\
+                .filter(profile__user_id=request.user.pk, building_id=building_id).get()
+        return profile_building
+    except ProfileBuilding.DoesNotExist:
         raise PermissionDenied("You do not have permission to modify this building.")
 
 @api_view(['GET', 'POST'])
@@ -328,9 +311,10 @@ def building_list_create(request):
         
         if geojson == 'true':
             # Always return all buildings for map layer (unfiltered)
-            buildings = Building.objects.all()
-            buildings_geojson = serializers.serialize('geojson', buildings)
-            return Response(buildings_geojson, status=status.HTTP_200_OK)
+            queryset = Building.objects.all()
+            geojson_response = serializers.serialize('geojson', queryset,
+                geometry_field='location', fields=['address', 'rental_price', 'owner_contact', 'district'])
+            return Response(geojson_response, status=status.HTTP_200_OK)
         else:
             # Apply filters at DB level for paginated response
             buildings = _apply_building_filters(request.query_params)
@@ -338,27 +322,20 @@ def building_list_create(request):
             paginator = CustomPagination()
             paginated_buildings = paginator.paginate_queryset(buildings, request)
             
-            buildings_data = []
-            for building in paginated_buildings:
-                building_geojson = json.loads(serializers.serialize('geojson', [building]))
-                
-                # Add image URL to properties
-                if building.image:
-                    building_geojson['features'][0]['properties']['image'] = building.image.name
-                
+            for building in paginated_buildings:        
                 # Add all nearby POIs data
                 nearby_pois = _get_all_nearby_pois(building, request.query_params)
                 if nearby_pois:
-                    building_geojson['features'][0]['properties']['nearby_pois'] = nearby_pois
-                
-                buildings_data.append(building_geojson)
-            
-            return paginator.get_paginated_response(buildings_data)
+                    building.nearby_pois = nearby_pois
+            serializer = BuildingGeoSerializer(paginated_buildings, many=True)
+            return paginator.get_paginated_response({
+                'type': 'FeatureCollection',
+                'features': serializer.data
+            })
 
     elif request.method == 'POST':
         user = request.user
-        if not user or not user.is_authenticated:
-            return Response({'error': 'Authentication credentials were not provided.'}, status=status.HTTP_401_UNAUTHORIZED)
+
         try:
             profile = Profile.objects.get(user=user)
         except Profile.DoesNotExist:
@@ -366,102 +343,104 @@ def building_list_create(request):
 
         serializer = BuildingSerializer(data=request.data)
         if serializer.is_valid():
-            instance = serializer.save()
-            profile.building.add(instance)
+            with transaction.atomic():
+                instance = serializer.save()
+                profile.building.add(instance)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 @api_view(['GET', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticatedOrReadOnly])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 def building_detail(request, pk):
-    try:
-        building = Building.objects.get(pk=pk)
-    except Building.DoesNotExist:
-        return Response({'error': 'Building not found'}, status=status.HTTP_404_NOT_FOUND)
-
     if request.method == 'GET':
-        geojson = request.query_params.get('geojson', 'false').lower()
-        if geojson == 'true':
-            building_geojson = serializers.serialize('geojson', [building])
-            return Response(building_geojson, status=status.HTTP_200_OK)
-        else:
-            serializer = BuildingSerializer(building)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-    elif request.method == 'PATCH':
         try:
-            check_modify_building_permission(request, building)
+            building = Building.objects.select_related('district').only(
+                'id', 'title', 'county', 'address', 'rental_price',
+                'num_bedrooms', 'num_bathrooms', 'square_meters', 'amenities',
+                'image', 'description', 'owner_contact', 'district__id', 'district__name'
+            ).get(id=pk)
+            geojson = request.query_params.get('geojson', 'false').lower()
+            if geojson == 'true':
+                building_geojson = BuildingGeoSerializer(building)
+                return Response(building_geojson.data, status=status.HTTP_200_OK)
+            else:
+                serializer = BuildingSerializer(building)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+        except Building.DoesNotExist:
+            return Response({'error': 'Building not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+    elif request.method == 'PATCH':
+        
+        try:
+            result = check_modify_building_permission(request, pk)
+            building = getattr(result, 'building', None) or result.get('building')
+            serializer = BuildingSerializer(building, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except PermissionDenied as e:
             return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
-
-        serializer = BuildingSerializer(building, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == 'DELETE':
         try:
-            check_modify_building_permission(request, building)
+            result = check_modify_building_permission(request, pk)
+            building = getattr(result, 'building', None) or result.get('building')
+            building.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
         except PermissionDenied as e:
             return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
-
-        building.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
+        
 @api_view(['PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
 def building_profiles(request, building_pk, user_pk):
     try:
-        check_modify_building_permission(request, Building.objects.get(pk=building_pk))
-        building = Building.objects.get(pk=building_pk)
-        user = User.objects.get(pk=user_pk)
-        profile = Profile.objects.get(user=user)
-    except Building.DoesNotExist:
-        return Response({'error': 'Building not found'}, status=status.HTTP_404_NOT_FOUND)
-    except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        profile = Profile.objects.get(user_id=user_pk)
+        result = check_modify_building_permission(request, building_pk, for_profile=True)
+        building = getattr(result, 'building', None) or result.get('building')
     except Profile.DoesNotExist:
-        return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
     except PermissionDenied as e:
         return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
     
     if request.method == 'PATCH':
-        building_profiles = profile.building.all()
-        if building in building_profiles:
+        if profile.building.filter(pk=building_pk).exists():
             return Response({'message': 'Profile already associated with this building'}, status=status.HTTP_200_OK)
         profile.building.add(building)
         return Response({'message': 'Profile added to building successfully'}, status=status.HTTP_200_OK)
     elif request.method == 'DELETE':
-        building_profiles = profile.building.all()
-        if building not in building_profiles:
+        if not profile.building.filter(pk=building_pk).exists():
             return Response({'message': 'Profile not associated with this building'}, status=status.HTTP_200_OK)
         profile.building.remove(building)
         return Response({'message': 'Profile removed from building successfully'}, status=status.HTTP_200_OK)
-    
-@api_view(['GET'])
-def building_profiles_list(request, building_pk):
-    try:
-        building = Building.objects.get(pk=building_pk)
-        profiles = Profile.objects.filter(building=building).select_related('user')
-    except Building.DoesNotExist:
-        return Response({'error': 'Building not found'}, status=status.HTTP_404_NOT_FOUND)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def building_profiles_list(request, building_pk):
+    user = request.user
+    users = User.objects.select_related('profile')\
+        .filter(profile__building__id=building_pk)
+    if not users.exists():
+        return Response({'error': 'Building not found'}, status=status.HTTP_404_NOT_FOUND)
+    if not user.is_staff and user not in users:
+        return Response({'error': 'permission denied'}, status=status.HTTP_403_FORBIDDEN)
     paginator = CustomPagination()
-    paginated_profiles = paginator.paginate_queryset(profiles, request)
-    profiles_serialized = list(map(lambda x: {**UserSerializer(x.user).data, 'profile': ProfileSerializer(x).data}, paginated_profiles))
-    return paginator.get_paginated_response(profiles_serialized)
+    page = paginator.paginate_queryset(users, request)
+    serializer = UserSerializer(page, many=True)
+    return paginator.get_paginated_response(serializer.data)
 
 # Helper functions for building filtering
 
 def _apply_building_filters(query_params):
     """Apply all filters at database level."""
-    queryset = Building.objects.all()
+    queryset = Building.objects.annotate(geojson_geom=AsGeoJSON('location')).all()
     
     # District filter
     district = query_params.get('district')
     if district and district.strip():
-        queryset = queryset.filter(district__iexact=district.strip())
+        queryset = queryset.filter(district__name=district.strip())
     
     # Price range filters
     price_min = query_params.get('price_min')
@@ -527,7 +506,6 @@ def _apply_building_filters(query_params):
             
             except (ValueError, TypeError):
                 continue
-    
     return queryset
 
 
