@@ -90,8 +90,8 @@
         if (field === 'username') input = form.querySelector('#current-username');
         if (!input) input = form.querySelector(`[name="${field}"]`);
         if (input) {
-          if (field === 'phone') input.value = data.profile ? data.profile.phone_number : '';
-          else if (field === 'address') input.value = data.profile ? data.profile.address : '';
+          if (field === 'phone') input.value = data.profile?.phone_number || '';
+          else if (field === 'address') input.value = data.profile?.address || '';
           else if (data[field] !== undefined) input.value = data[field];
         }
       });
@@ -234,7 +234,6 @@
       if(!f) return;
       const p = f.properties || {};
       const id = p.id || p.pk;
-      
       if(!confirm('Delete this listing? This action cannot be undone.')) {
         return;
       }

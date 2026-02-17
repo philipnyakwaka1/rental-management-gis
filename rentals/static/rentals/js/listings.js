@@ -29,7 +29,7 @@
       if(!resp || !resp.ok){ console.error('Failed to fetch listings', resp && resp.status); return; }
       const data = await resp.json();
       pageNext = data.next; pagePrev = data.previous;
-      const items = (data.results || []).map(parseBuildingItem).filter(Boolean);
+      const items = (data.results.features || []).map(parseBuildingItem).filter(Boolean);
       renderListings(items);
       renderPagination();
     }
@@ -50,6 +50,7 @@
         const phone = window.RentalsSharedUtils.escapeHtml(p.owner_contact || (p.profile && p.profile.phone_number) || '—');
         const price = window.RentalsSharedUtils.escapeHtml(p.rental_price || 'N/A');
         const district = window.RentalsSharedUtils.escapeHtml(p.district || '—');
+        const square_meters = window.RentalsSharedUtils.escapeHtml(p.square_meters || 'N/A');
         const hasBedrooms = p.num_bedrooms !== undefined && p.num_bedrooms !== null && p.num_bedrooms !== '';
         const hasBathrooms = p.num_bathrooms !== undefined && p.num_bathrooms !== null && p.num_bathrooms !== '';
         const bedrooms = hasBedrooms ? window.RentalsSharedUtils.escapeHtml(p.num_bedrooms) : '';
@@ -122,6 +123,7 @@
             <p class="mb-1 text-muted small">Location (district): ${district}</p>
             ${bedroomsHtml}
             ${bathroomsHtml}
+            <p class="mb-1 text-muted small">Size: ${square_meters} m²</p>
             <p class="mb-1 text-muted small">Owner's Contact: ${phone}</p>
               <div class="d-flex gap-2 mt-2">
               <button class="btn btn-sm btn-outline-primary btn-show">Show</button>

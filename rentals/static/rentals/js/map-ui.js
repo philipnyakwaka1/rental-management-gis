@@ -57,7 +57,7 @@
           try{ activeHighlight.layer.setIcon(activeHighlight.prevIcon); }catch(e){}
           activeHighlight = null;
         }
-
+        
         const baseLayerMarker = idToLayer.get(String(key));
         if(baseLayerMarker){
           const prev = baseLayerMarker.options && baseLayerMarker.options.icon ? baseLayerMarker.options.icon : null;
@@ -131,7 +131,7 @@
       resizeObserver.observe(mapContainer);
       
       // Clean up observer when page unloads
-      window.addEventListener('unload', () => {
+      window.addEventListener('pagehide', () => {
         if (resizeObserver) {
           resizeObserver.disconnect();
           resizeObserver = null;
@@ -256,7 +256,7 @@
         marker.bindPopup(popup);
         
         // register layer by id (fallback to coordinate key)
-        const key = props.id || props.pk || `${coords[0].toFixed(6)}_${coords[1].toFixed(6)}`;
+        const key = feature.id || feature.pk || `${coords[0].toFixed(6)}_${coords[1].toFixed(6)}`;
         if(key) idToLayer.set(String(key), marker);
         
         // Store feature reference for highlighting

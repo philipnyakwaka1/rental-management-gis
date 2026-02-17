@@ -2,11 +2,11 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
-from django.contrib.gis.geos import Point
+from django.contrib.gis.geos import Point, Polygon, MultiPolygon
 
 from django.db.models.signals import post_save
 
-from rentals.models import Building, Profile
+from rentals.models import Building, Profile, District
 import rentals.signals as signals
 
 User = get_user_model()
@@ -26,7 +26,15 @@ class APITestCase(TestCase):
         Profile.objects.create(user=self.other)
         Profile.objects.create(user=self.admin)
 
-        self.building = Building.objects.create(address='Addr', location=Point(1.0, 1.0), owner_contact='oc')
+        # District and Building location geometry
+        polygon = Polygon(((-122.0, 37.0),(-122.0, 38.0),(-121.0, 38.0),(-121.0, 37.0),(-122.0, 37.0),
+        ), srid=4326)
+        self.location = Point(-121.5, 37.5, srid=4326)
+        multipolygon = MultiPolygon(polygon, srid=4326)
+        self.district = District.objects.create(name="Test District",county="Test County",geometry=multipolygon)
+
+        #building
+        self.building = Building.objects.create(address='Addr', location=self.location, owner_contact='oc', district=self.district)
         self.building.profiles.add(self.user.profile)
 
         # endpoints
@@ -122,7 +130,7 @@ class APITestCase(TestCase):
         token_resp = self._login_and_get_token('user1', 'StrongP@ss1')
         access = token_resp.data.get('access')
         client = APIClient(); client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
-        create_resp = client.post(self.building_list_url, data={'address': 'New', 'location': '2.0,2.0', 'owner_contact': 'oc'}, format='json')
+        create_resp = client.post(self.building_list_url, data={'address': 'New', 'location': '37.5, -121.5', 'district': self.district.name,'owner_contact': 'oc'}, format='json')
         self.assertEqual(create_resp.status_code, 201)
 
         # modify building by non-owner should be forbidden

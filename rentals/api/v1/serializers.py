@@ -3,14 +3,23 @@ from django.contrib.auth import get_user_model
 from rentals.models import Profile, Building, District
 from password_strength import PasswordPolicy
 from django.contrib.gis.geos import Point
+import imghdr
+import json
 
 User = get_user_model()
 
+class ProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = ['phone_number', 'address']
+
 class UserSerializer(serializers.ModelSerializer):
+    phone = serializers.CharField(source='profile.phone_number', required=False) 
+    address = serializers.CharField(source='profile.address', required=False)
     class Meta:
         model = User
-        exclude = ['is_superuser', 'is_staff', 'is_active', 'groups', 'user_permissions']
-        extra_kwargs = {'password': {'write_only': True}, 'last_login': {'read_only': True}, 'date_joined': {'read_only': True}}
+        fields = ['id', 'username', 'password', 'email', 'first_name', 'last_name', 'phone', 'address']
+        extra_kwargs = {'password': {'write_only': True}}
 
     def validate_password(self, value):
 
@@ -60,34 +69,51 @@ class UserSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
+        profile_data = validated_data.pop('profile', None)
         for attr, value in validated_data.items():
-            if hasattr(instance, attr):
-                setattr(instance, attr, value)
+            setattr(instance, attr, value)
         if password is not None:
             instance.set_password(password)
         instance.save()
+        if profile_data:
+            profile = getattr(instance, 'profile', None)
+            if profile is None:
+                profile = Profile.objects.create(user=instance)
+            for attr, value in profile_data.items():
+                setattr(profile, attr, value)
+            profile.save()
         return instance
 
-class ProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Profile
-        fields = ['phone_number', 'address']
-
 class BuildingSerializer(serializers.ModelSerializer):
+    district = serializers.SlugRelatedField(slug_field='name', queryset=District.objects.all())
     class Meta:
         model = Building
-        fields = '__all__'
-        extra_kwargs = {'created_at': {'read_only': True}, 'updated_at': {'read_only': True}}
+        fields = [
+        'id',
+        'title',
+        'county',
+        'district',
+        'address',
+        'rental_price',
+        'num_bedrooms',
+        'num_bathrooms',
+        'square_meters',
+        'amenities',
+        'location',
+        'image',
+        'description',
+        'owner_contact',
+    ]
 
     def validate_image(self, value):
-        if value:
-            import imghdr
-            image_type = imghdr.what(value)
-            if not image_type:
-                raise serializers.ValidationError("Uploaded file is not a valid image.")
-            allowed_types = ['jpeg', 'jpg', 'png', 'gif', 'webp']
-            if image_type not in allowed_types:
-                raise serializers.ValidationError(f"Image type '{image_type}' is not supported. Allowed types: {', '.join(allowed_types)}")
+        if not value:
+            return value
+        image_type = imghdr.what(value)
+        if not image_type:
+            raise serializers.ValidationError("Uploaded file is not a valid image.")
+        allowed_types = ['jpeg', 'jpg', 'png']
+        if image_type not in allowed_types:
+            raise serializers.ValidationError(f"Image type '{image_type}' is not supported. Allowed types: {', '.join(allowed_types)}")
         if value.size > 2 * 1024 * 1024:
             raise serializers.ValidationError("Image size should not exceed 2MB.")
         return value
@@ -127,24 +153,78 @@ class BuildingSerializer(serializers.ModelSerializer):
         if not (-180 <= lon <= 180):
             raise serializers.ValidationError("Longitude must be between -180 and 180 degrees.")
         
-        # Check if building lies within the district boundary (only if district is provided)
-        point = Point(lon, lat, srid=4326)
-        district_name = self.initial_data.get('district')
-        if district_name:
-            district = District.objects.filter(name=district_name).first()
-            if district and not district.geometry.contains(point):
-                raise serializers.ValidationError(f"Building location must be within {district.name} district boundary.")
-            elif not district:
-                raise serializers.ValidationError(f"District '{district_name}' does not exist.")
-        
-        return point
+        return Point(lon, lat, srid=4326)
+    
+    def validate(self, attrs):
+        # Check if building lies within the district boundary
+        location = attrs.get('location')
+        district = attrs.get('district')
+
+        if self.instance: # Always true on PATCH/PUT
+            location = location or self.instance.location
+            district = district or self.instance.district
+
+        if location and district:
+            if not district.geometry.contains(location):
+                raise serializers.ValidationError({'location': 'Building location must be within {district.name} district boundary.'})
+        return attrs
         
     def create(self, validated_data):
         return self.Meta.model.objects.create(**validated_data)
     
     def update(self, instance, validated_data):
         for attr, value in validated_data.items():
-            if hasattr(instance, attr):
                 setattr(instance, attr, value)
         instance.save()
         return instance
+    
+class BuildingGeoSerializer(serializers.ModelSerializer):
+    """Full GeoJSON Feature serializer for building detail responses.
+    
+    Requires the queryset to be annotated with:
+        - geojson_geom = AsGeoJSON('location')
+    and select_related('district').
+    
+    Includes all property fields for detail views.
+    """
+    geometry = serializers.SerializerMethodField()
+    properties = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Building
+        fields = ['geometry', 'properties']
+    
+    def get_geometry(self, instance):
+        """Parse pre-computed GeoJSON geometry from annotation."""
+        # Safely handle missing annotation with getattr
+        geojson_geom = getattr(instance, 'geojson_geom', None)
+        if not geojson_geom:
+            return None
+        return json.loads(geojson_geom)
+
+    def get_properties(self, instance):
+        return {
+            'id': instance.pk,
+            'title': instance.title,
+            'county': instance.county,
+            'district': instance.district.name,
+            'address': instance.address,
+            'rental_price': instance.rental_price,
+            'num_bedrooms': instance.num_bedrooms,
+            'num_bathrooms': instance.num_bathrooms,
+            'square_meters': instance.square_meters,
+            'amenities': instance.amenities,
+            'image': instance.image.name if instance.image else None,
+            'description': instance.description,
+            'owner_contact': instance.owner_contact,
+            'nearby_pois': instance.nearby_pois if hasattr(instance, 'nearby_pois') else None
+        }
+
+    def to_representation(self, instance):
+        return {
+            'type': 'Feature',
+            'geometry': self.get_geometry(instance),
+            'properties': self.get_properties(instance)
+        }
+
+

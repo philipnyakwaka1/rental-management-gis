@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import Point
 from django.core.management.base import BaseCommand, CommandError
 
-from rentals.models import Building, Profile
+from rentals.models import Building, Profile, District
 
 User = get_user_model()
 
@@ -77,7 +77,7 @@ class Command(BaseCommand):
 		if not csv_path.exists():
 			raise CommandError(f"CSV file not found: {csv_path}")
 
-		user = User.objects.filter(username="testUser1").first()
+		user = User.objects.filter(username="admin").first()
 		if not user:
 			raise CommandError("User with username 'testUser1' not found.")
 
@@ -132,7 +132,7 @@ class Command(BaseCommand):
 			building_data = {
 				"title": get_value(row, "title"),
 				"county": get_value(row, "county"),
-				"district": get_value(row, "district"),
+				"district": District.objects.get(name=get_value(row, "district")),
 				"address": get_value(row, "address"),
 				"location": location,
 				"pets_allowed": parse_bool(get_value(row, "pets_allowed"))

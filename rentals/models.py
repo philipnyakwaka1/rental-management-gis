@@ -2,11 +2,25 @@ from django.db import models
 from django.contrib.gis.db import models as gis_models
 from django.contrib.auth.models import User
 
+
+
+class District(models.Model):
+    """"Model representing a district."""
+    name = models.CharField(max_length=100, unique=True) # unique already creates an index
+    county = models.CharField(max_length=100)
+    geometry = gis_models.MultiPolygonField(spatial_index=True, srid=4326, geography=True, null=False)
+
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        db_table = "district"
+
 class Building(models.Model):
     """Model representing a building with geographic location and rental details."""
     title = models.CharField(max_length=150, null=True, default=None)
     county = models.CharField(max_length=100, null=True, default=None)
-    district = models.CharField(max_length=100, null=True, default=None)
+    district = models.ForeignKey(District, on_delete=models.PROTECT, null=False, default=None)
     address = models.CharField(max_length=255, null=True, default=None)
     location = gis_models.PointField(spatial_index=True, geography=True, srid=4326, null=False, blank=False)
     image = models.ImageField(upload_to='buildings/%Y/%m/%d/', null=True, blank=True)
@@ -45,27 +59,20 @@ class Profile(models.Model):
     
 class ProfileBuilding(models.Model):
     """Model representing the relationship between profiles and buildings."""
-    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, null=True, default=None)
-    building = models.ForeignKey(Building, on_delete=models.CASCADE, null=True, default=None)
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, default=None)
+    building = models.ForeignKey(Building, on_delete=models.CASCADE, default=None)
 
     def __str__(self):
         return f'Profile: {self.profile.user.username} - Building ID: {self.building.id}'
     
     class Meta:
         db_table = "profile_building"
-
-
-class District(models.Model):
-    """"Model representing a district."""
-    name = models.CharField(max_length=100)
-    county = models.CharField(max_length=100)
-    geometry = gis_models.MultiPolygonField(spatial_index=True, srid=4326, geography=True, null=False)
-
-    def __str__(self):
-        return self.name
-    
-    class Meta:
-        db_table = "district"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['building', 'profile'],
+                name='unique_building_profile'
+            )
+        ]
 
 class BusStop(models.Model):
     """Model representing a bus stop with geographic location."""

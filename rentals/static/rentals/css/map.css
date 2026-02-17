@@ -46,17 +46,10 @@ header {
     margin-bottom: 15px;
 }
 
-/* Card styling for the listings and map containers */
-.card {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-}
-
-.card-body {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
+/* Keep listing cards content-driven so collapse sections expand naturally */
+#listings .card,
+#user-buildings-list .card {
+    height: auto;
 }
 
 /* Marker cluster styling */
