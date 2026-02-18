@@ -3,7 +3,7 @@ from .models import District
 
 def rental_listings(request):
 	"""Render the rental listings page."""
-	districts = District.objects.order_by('name').values_list('name', flat=True)
+	districts = District.objects.order_by('name').only('name', 'id')
 	return render(request, 'rentals/map.html', {'districts': districts})
 
 

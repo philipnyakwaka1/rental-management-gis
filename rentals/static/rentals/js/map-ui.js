@@ -90,6 +90,21 @@
 
 
   function init(){
+    // On hard refresh, clear highlight so map loads in full-extent mode.
+    try {
+      const navEntry = performance.getEntriesByType('navigation')[0];
+      const isReload = navEntry && navEntry.type === 'reload';
+      if (isReload) {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('highlight')) {
+          params.delete('highlight');
+          const query = params.toString();
+          const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+          window.history.replaceState({}, '', nextUrl);
+        }
+      }
+    } catch (e) {}
+
     // initialize map
     map = L.map('map', {
       center: CENTER_COORDINATES,
@@ -252,11 +267,14 @@
         const marker = L.marker(latlng, {icon: new customBuildingIcon()});
         
         const props = feature.properties || {};
-        const popup = `<div>Address: <strong>${window.RentalsSharedUtils.escapeHtml(props.address||'Address')}</strong><br/>District: ${window.RentalsSharedUtils.escapeHtml(props.district||'N/A')}<br/>Price (USD): ${window.RentalsSharedUtils.escapeHtml(props.rental_price||'N/A')}<br/>Owner's contact: ${window.RentalsSharedUtils.escapeHtml(props.owner_contact||'N/A')}</div>`;
+        const select = document.querySelector('#district-select');
+        const option = select.querySelector(`option[id="${props.district}"]`);
+        const districtName = option ? option.textContent : 'N/A'
+        const popup = `<div>Address: <strong>${window.RentalsSharedUtils.escapeHtml(props.address||'Address')}</strong><br/>District: ${districtName}<br/>Price (USD): ${window.RentalsSharedUtils.escapeHtml(props.rental_price||'N/A')}<br/>Owner's contact: ${window.RentalsSharedUtils.escapeHtml(props.owner_contact||'N/A')}<br><br><a href="https://www.google.com/maps/search/?api=1&query=${coords[1]},${coords[0]}" target="_blank">Navigate</a></div>`;
         marker.bindPopup(popup);
         
         // register layer by id (fallback to coordinate key)
-        const key = feature.id || feature.pk || `${coords[0].toFixed(6)}_${coords[1].toFixed(6)}`;
+        const key = props.pk || props.id || `${coords[0].toFixed(6)}_${coords[1].toFixed(6)}`;
         if(key) idToLayer.set(String(key), marker);
         
         // Store feature reference for highlighting
@@ -267,8 +285,14 @@
 
       allBuildingsLayer.addTo(map);
       
-      // fit bounds only if no other data is present (don't override user view)
-      try{ if(allBuildingsLayer && allBuildingsLayer.getBounds && !map._initialBoundsSet){ map.fitBounds(allBuildingsLayer.getBounds(), {maxZoom: 14}); map._initialBoundsSet = true; } }catch(e){}
+      // fit bounds only when not highlighting a specific building
+      try{
+        const hasHighlight = !!(new URLSearchParams(window.location.search).get('highlight'));
+        if(allBuildingsLayer && allBuildingsLayer.getBounds && !map._initialBoundsSet && !hasHighlight){
+          map.fitBounds(allBuildingsLayer.getBounds(), {maxZoom: 14});
+          map._initialBoundsSet = true;
+        }
+      }catch(e){}
     }catch(e){ 
       console.error('loadAllBuildings error', e); 
       // Initialize with empty GeoJSON on error to prevent null reference issues
