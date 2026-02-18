@@ -14,8 +14,8 @@ class ProfileSerializer(serializers.ModelSerializer):
         fields = ['phone_number', 'address']
 
 class UserSerializer(serializers.ModelSerializer):
-    phone = serializers.CharField(source='profile.phone_number', required=False) 
-    address = serializers.CharField(source='profile.address', required=False)
+    phone = serializers.CharField(source='profile.phone_number', required=False, allow_blank=True, allow_null=True)
+    address = serializers.CharField(source='profile.address', required=False, allow_blank=True, allow_null=True)
     class Meta:
         model = User
         fields = ['id', 'username', 'password', 'email', 'first_name', 'last_name', 'phone', 'address']
@@ -166,7 +166,7 @@ class BuildingSerializer(serializers.ModelSerializer):
 
         if location and district:
             if not district.geometry.contains(location):
-                raise serializers.ValidationError({'location': 'Building location must be within {district.name} district boundary.'})
+                raise serializers.ValidationError({'location': f'Based on your district selection, the building location must be within {district.name} district boundary. Please check your district and building coordinate data.'})
         return attrs
         
     def create(self, validated_data):
@@ -223,6 +223,7 @@ class BuildingGeoSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         return {
             'type': 'Feature',
+            'id': instance.pk,
             'geometry': self.get_geometry(instance),
             'properties': self.get_properties(instance)
         }

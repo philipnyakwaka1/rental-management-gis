@@ -313,7 +313,7 @@ def building_list_create(request):
             # Always return all buildings for map layer (unfiltered)
             queryset = Building.objects.all()
             geojson_response = serializers.serialize('geojson', queryset,
-                geometry_field='location', fields=['address', 'rental_price', 'owner_contact', 'district'])
+                geometry_field='location', fields=['pk', 'address', 'rental_price', 'owner_contact', 'district'])
             return Response(geojson_response, status=status.HTTP_200_OK)
         else:
             # Apply filters at DB level for paginated response
