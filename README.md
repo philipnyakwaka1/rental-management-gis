@@ -22,17 +22,7 @@ A geospatial search platform for discovering rental properties based on location
 
 ## Overview
 
-Rentals GIS is a full-stack geospatial search platform that enables users to:
-
-- **Discover rental properties** using an interactive map with geographic visualization
-- **Query properties** by district, price range, and proximity to points of interest (POIs)
-- **Calculate distances** to amenities like shops, bus stops, and transit routes
-- **Manage personal accounts** with secure JWT-based authentication
-- **Access comprehensive property data** via a fully RESTful API
-
-**Primary Focus**: Geospatial search and discovery of rental properties, allowing users to find properties that match their location preferences and proximity requirements.
-
-The system leverages **PostGIS**, a spatial database extension for PostgreSQL, to handle complex geospatial queries efficiently. The frontend uses **Leaflet.js** to provide an intuitive, interactive mapping interface.
+Rentals GIS is a full-stack geospatial search platform that enables users to discover rental properties through an interactive map interface, filter listings by district, price range, and proximity to points of interest, calculate distances to nearby amenities such as shops and transit, manage secure JWT-based accounts, and access property data via a fully RESTful API. The system leverages PostGIS for advanced spatial querying within PostgreSQL and uses Leaflet.js to deliver an intuitive, interactive mapping experience.
 
 
 ## Project Architecture
@@ -74,32 +64,11 @@ rental-management-gis/
 
 ### Architecture Principles
 
-The API strictly adheres to REST architectural principles:
-
-- **Resource-Oriented Design**: All endpoints represent resources (users, buildings, profiles, etc.)
-- **HTTP Methods**: Proper use of GET, POST, PATCH, DELETE for CRUD operations
-- **Stateless Architecture**: Every request contains all information needed for processing
-- **JSON Format**: All resources are represented and transferred as JSON
-- **Status Codes**: Meaningful HTTP status codes (200, 201, 400, 401, 403, 404, etc.)
+The API adheres to core REST architectural principles, employing a resource-oriented design in which each endpoint represents a distinct resource (such as users, buildings, or profiles), using appropriate HTTP methods (GET, POST, PATCH, DELETE) for CRUD operations, maintaining statelessness by requiring each request to contain all necessary processing information, exchanging data exclusively in JSON format, and returning meaningful HTTP status codes (e.g., 200, 201, 400, 401, 403, 404) to clearly communicate outcomes.
 
 ### Authentication: JSON Web Tokens (JWT)
 
-The system implements a fully RESTful authentication mechanism using **Django REST Framework Simple JWT**:
-
-#### Key Features
-
-1. **Access Tokens**: Short-lived JWT tokens (15 minutes default) stored in memory/session
-2. **Refresh Tokens**: Long-lived tokens (30 days) stored in secure HttpOnly cookies
-3. **Secure Cookie Handling**:
-   - HttpOnly flag prevents JavaScript access (XSS protection)
-   - Secure flag enforces HTTPS in production
-   - SameSite policy prevents CSRF attacks
-4. **Token Refresh**: Clients can obtain new access tokens using refresh tokens without re-authenticating
-5. **Password Validation**: Enforced strong password requirements:
-   - Minimum 8 characters
-   - At least one uppercase letter
-   - At least one number
-   - At least one special character
+Authentication is implemented using Django REST Framework Simple JWT in a fully RESTful model, issuing short-lived access tokens (15 minutes by default) stored in memory or session storage and long-lived refresh tokens (30 days) stored in secure, HttpOnly cookies. Cookie security is enforced through HttpOnly (mitigating XSS), Secure (HTTPS-only in production), and SameSite (CSRF protection) flags. The system supports seamless token refresh without requiring re-authentication and enforces strong password validation, including a minimum of eight characters with at least one uppercase letter, one number, and one special character.
 
 #### Authentication Flow
 
@@ -209,10 +178,8 @@ Response: 200 OK
   "id": 1,
   "username": "john_doe",
   "email": "john@example.com",
-  "profile": {
-    "phone_number": "+254712345678",
-    "address": "123 Main St"
-  }
+  "phone_number": "+254712345678",
+  "address": "123 Main St"
 }
 ```
 
@@ -300,13 +267,8 @@ Permissions: Authenticated
 
 Response: 200 OK
 {
-  "id": 1,
-  "username": "john_doe",
-  "email": "john@example.com",
-  "profile": {
-    "phone_number": "+254712345678",
-    "address": "123 Main St"
-  }
+   "phone_number": "+254712345678",
+   "address": "123 Main St"
 }
 ```
 
@@ -407,25 +369,35 @@ Paginated Response (geojson=false):
   "count": 125,
   "next": "http://api.example.com/v1/buildings/?page=2",
   "previous": null,
-  "results": [
+  "results": {
+  "type": "FeatureCollection",
+  "features": [
     {
-      "id": 1,
-      "title": "Cozy 2-Bedroom",
-      "address": "456 Elm Street",
-      "county": "Nairobi County",
-      "district": "Nairobi",
-      "location": {...},
-      "rental_price": "3500.00",
-      "num_bedrooms": 2,
-      "num_bathrooms": 1,
-      "square_meters": "850.00",
-      "pets_allowed": true,
-      "available_from": "2026-02-15",
-      "image": "buildings/2026/02/15/property.jpg",
-      "amenities": ["WiFi", "Parking", "Garden"],
-      "owner_contact": "+254712345678",
-      "created_at": "2026-02-09T10:30:00Z",
-      "updated_at": "2026-02-09T10:30:00Z"
+        "type": "Feature",
+        "id": 1,
+        "geometry": {
+            "type": "Point",
+            "coordinates": [
+                36.718945,
+                -1.265073
+            ]
+        },
+        "properties": {
+            "id": 1,
+            "title": null,
+            "county": "Nairobi",
+            "district": "Dagoretti",
+            "address": "Uthiru Desire Apartment 3",
+            "rental_price": 280.0,
+            "num_bedrooms": 5,
+            "num_bathrooms": 1,
+            "square_meters": 54.0,
+            "amenities": ["wifi","parking","pool","gym"],
+            "image": "buildings/2026/02/17/abby-rurenko-unsplash.jpg",
+            "description": null,
+            "owner_contact": "2547XX2384",
+            "nearby_pois": null
+        }
     }
   ]
 }
@@ -511,10 +483,8 @@ Response: 200 OK
       "id": 1,
       "username": "john_doe",
       "email": "john@example.com",
-      "profile": {
-        "phone_number": "+254712345678",
-        "address": "123 Main St"
-      }
+      "phone_number": "+254712345678",
+      "address": "123 Main St"
     }
   ]
 }
@@ -566,14 +536,7 @@ Response: GeoJSON or paginated JSON list
 
 ### Backend: PostGIS Integration
 
-#### Database Configuration
-
-The backend uses **PostGIS**, a spatial database extension for PostgreSQL, which provides:
-
-- **Geometric data types**: Point, LineString, Polygon, MultiPolygon, etc.
-- **Spatial indexes**: GiST indexes for efficient geometric queries
-- **Spatial functions**: Distance calculations, containment tests, geometric operations
-- **Geographic type**: Uses WGS84 (SRID 4326) for GPS coordinates
+The backend integrates PostGIS, a PostgreSQL spatial extension, to enable advanced geospatial functionality. It supports geometric data types such as Point, LineString, Polygon, and MultiPolygon, leverages GiST spatial indexes for efficient query performance, and utilizes built-in spatial functions for distance calculations and containment operations. All geographic data is stored using the WGS84 coordinate system (SRID 4326) to ensure accurate handling of GPS-based coordinates.
 
 **Django Configuration** (in `settings.py`):
 ```python
@@ -730,14 +693,7 @@ building_in_district = District.objects.filter(
 
 ### Frontend: Leaflet Maps Implementation
 
-#### Architecture Design
-
-The frontend GIS implementation uses **Leaflet.js**, a lightweight JavaScript library for interactive maps. The architecture emphasizes:
-
-1. **Separation of Concerns**: Map management is isolated from listing/filter logic
-2. **Lazy Loading**: GeoJSON data loaded asynchronously to prevent blocking
-3. **Interactive Feedback**: User interactions update both map and listings synchronously
-4. **Responsive Design**: Map resizes dynamically as content expands/contracts
+The frontend GIS layer is built with Leaflet.js, providing a lightweight, interactive mapping interface. The architecture separates map management from listing and filtering logic, loads GeoJSON data asynchronously to improve performance, synchronizes user interactions between map markers and property listings, and ensures responsive behavior by dynamically resizing the map as the layout changes.
 
 #### Core Components
 
@@ -1335,83 +1291,6 @@ Use this checklist for a complete deployment:
 ☐ 13. Start development server (python manage.py runserver)
 ☐ 14. Access application at http://localhost:8000/rentals/
 ☐ 15. Verify buildings appear on the map
-```
-
-
-## Project Structure
-
-```
-rentals/
-├── api/v1/
-│   ├── __init__.py
-│   ├── views.py              # All 20+ API endpoints
-│   ├── serializers.py        # DRF serializers, password validation
-│   ├── pagination.py         # Custom pagination (5 results/page)
-│   └── urls.py               # URL routing for API v1
-│
-├── loaders/
-│   ├── district_loader.py    # Load district boundaries from shapefile
-│   ├── bus_stop_loader.py    # Load public transport stops
-│   ├── route_loader.py       # Load transit routes
-│   └── shops_loader.py       # Load shop locations
-│
-├── management/commands/
-│   ├── import_buildings.py   # Import building data
-│   ├── load_districts.py     # District import command
-│   ├── load_bus_stops.py     # Bus stop import command
-│   ├── load_routes.py        # Route import command
-│   └── load_shops.py         # Shop import command
-│
-├── migrations/               # Database schema versions
-│   ├── 0001_initial.py
-│   ├── 0002_building_available_from...py
-│   ├── 0003_alter_building_description.py
-│   ├── 0004_remove_building_square_footage...py
-│   ├── 0005_buildingimage.py
-│   ├── 0006_district_alter_building_location...py
-│   ├── 0007_busstop.py
-│   ├── 0008_route_shops_alter_busstop_name...py
-│   └── 0009_alter_shops_category...py
-│
-├── static/rentals/
-│   ├── js/
-│   │   ├── map-ui.js         # Leaflet map & listing integration
-│   │   ├── listings.js       # Listing card rendering, pagination
-│   │   ├── filters-form.js   # Filter form handling
-│   │   ├── account.js        # User account management
-│   │   ├── login.js          # Login form & JWT handling
-│   │   ├── logout.js         # Logout functionality
-│   │   ├── register.js       # Registration form & validation
-│   │   ├── passwordPolicy.js # Client-side password validation
-│   │   ├── shared-utils.js   # Shared utility functions
-│   │   └── tests/            # Frontend test files
-│   │
-│   ├── css/                  # Stylesheets
-│   ├── icons/
-│   │   └── building-icon.svg # Custom marker icon
-│   └── data/
-│       └── nairobi_outline.geojson  # County boundary
-│
-├── templates/rentals/
-│   ├── map.html              # Main map page
-│   ├── register.html         # Registration page
-│   ├── login.html            # Login page
-│   ├── account.html          # User account page
-│   └── partials/             # Reusable template components
-│
-├── tests/
-│   ├── test_models.py        # 163 lines - Model tests
-│   ├── test_api_views.py     # 185 lines - API endpoint tests
-│   ├── test_authentication.py # 95 lines - JWT authentication tests
-│   └── __init__.py
-│
-├── models.py                 # Django ORM models with GIS fields
-├── views.py                  # Django template views
-├── signals.py                # Django signals (profile auto-creation)
-├── urls.py                   # URL routing for views
-├── admin.py                  # Django admin configuration
-├── apps.py                   # App configuration
-└── __init__.py
 ```
 
 
