@@ -15,7 +15,7 @@
               <select id="district-select" name="district" class="form-select">
                 <option value="">All districts</option>
                 {% for district in districts %}
-                  <option value="{{ district }}">{{ district }}</option>
+                  <option id="{{ district.id }}" value="{{ district }}">{{ district.name }}</option>
                 {% endfor %}
               </select>
             </div>

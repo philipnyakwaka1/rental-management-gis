@@ -149,11 +149,11 @@
                     },
                     body: JSON.stringify(data)
                 });
-
+                
                 if (response.ok) {
-                    const msg = 'Registration successful! You will be redirected to the login page in <span id="countdown">5</span> seconds...';
+                    const msg = 'Registration successful! You will be redirected to the login page in <span id="countdown">3</span> seconds...';
                     showAlert(msg, 'success');
-                    let countdown = 5;
+                    let countdown = 3;
                     const countdownElement = document.getElementById('countdown');
                     const interval = setInterval(() => {
                         countdown--;

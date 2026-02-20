@@ -90,9 +90,7 @@
         if (field === 'username') input = form.querySelector('#current-username');
         if (!input) input = form.querySelector(`[name="${field}"]`);
         if (input) {
-          if (field === 'phone') input.value = data.profile?.phone_number || '';
-          else if (field === 'address') input.value = data.profile?.address || '';
-          else if (data[field] !== undefined) input.value = data[field];
+          input.value = data[field] !== undefined ? data[field] : ''
         }
       });
     } catch (error) {
